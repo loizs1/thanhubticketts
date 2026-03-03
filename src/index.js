@@ -5,7 +5,6 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import { connectDatabase } from './database/database.js';
-import { startTranscriptServer } from './systems/ticket/transcriptServer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -85,9 +84,6 @@ async function init() {
   try {
     console.log(chalk.yellow('Loading Database...'));
     await connectDatabase();
-    
-    console.log(chalk.yellow('Starting Transcript Server...'));
-    startTranscriptServer();
     
     console.log(chalk.yellow('Loading Commands...'));
     await loadCommands();
