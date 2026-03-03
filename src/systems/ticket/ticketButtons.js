@@ -6,6 +6,8 @@ import Category from '../../database/models/Category.js';
 import StaffPoints from '../../database/models/StaffPoints.js';
 
 import { generateHTMLTranscript } from './transcriptGenerator.js';
+import { getTranscriptUrl } from './transcriptServer.js';
+
 
 
 
@@ -1022,13 +1024,42 @@ export async function handleDeleteTranscriptModal(interaction) {
     const htmlContent = generateHTMLTranscript(ticket, Array.from(messages.values()), guild, channel);
     const transcriptBuffer = Buffer.from(htmlContent, 'utf-8');
 
+    let transcriptUrl = null;
+    let transcriptPath = null;
     let transcriptSent = false;
+    
+    // Save transcript to file for web server
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    
+    const transcriptsDir = path.join(__dirname, '../../../transcripts');
+    
+    // Create transcripts directory if it doesn't exist
+    if (!fs.existsSync(transcriptsDir)) {
+      fs.mkdirSync(transcriptsDir, { recursive: true });
+    }
     
     const safeTicketNumber = ticket.ticketNumber || 'unknown';
     const safeCategory = (ticket.category || 'unknown').toLowerCase().replace(/\s+/g, '-');
     const fileName = `ticket-${safeTicketNumber}-${safeCategory}.html`;
+    const filePath = path.join(transcriptsDir, fileName);
+    
+    // Save HTML file
+    fs.writeFileSync(filePath, htmlContent);
+    console.log(`[TRANSCRIPT] Saved transcript to: ${filePath}`);
+    
+    // Generate web URL using the transcript server
+    transcriptUrl = getTranscriptUrl(ticket.id);
+    transcriptPath = filePath;
+    
+    console.log(`[TRANSCRIPT] Web URL: ${transcriptUrl}`);
     
     console.log(`[TRANSCRIPT] Config:`, {
+
       transcriptChannelId: config?.transcriptChannelId,
       ticketLogChannelId: config?.ticketLogChannelId,
       guildId: guild.id
@@ -1058,18 +1089,25 @@ export async function handleDeleteTranscriptModal(interaction) {
             .setColor(colors.primary)
             .setTimestamp();
 
-          console.log(`[TRANSCRIPT] Sending transcript with HTML attachment to channel ${targetChannelId}...`);
+          // Create button to view transcript online
+          const viewTranscriptButton = new ButtonBuilder()
+            .setLabel('View Transcript Online')
+            .setStyle(ButtonStyle.Link)
+            .setURL(transcriptUrl || 'https://example.com')
+            .setEmoji('🌐');
+
+          const buttonRow = new ActionRowBuilder()
+            .addComponents(viewTranscriptButton);
+
+          console.log(`[TRANSCRIPT] Sending transcript notification to channel ${targetChannelId}...`);
           
-          // Send transcript as Discord file attachment (no web server needed!)
           await targetChannel.send({
             embeds: [transcriptEmbed],
-            files: [{
-              attachment: transcriptBuffer,
-              name: fileName
-            }]
+            components: [buttonRow]
           });
 
-          console.log(`[TRANSCRIPT] Transcript sent successfully as attachment!`);
+          console.log(`[TRANSCRIPT] Transcript notification sent successfully!`);
+
           transcriptSent = true;
           
         } catch (sendError) {
@@ -1092,8 +1130,9 @@ export async function handleDeleteTranscriptModal(interaction) {
           closedAt: new Date().toISOString(),
           closedBy: user.id,
           closeReason: 'Deleted with transcript',
-          transcriptUrl: null,
-          transcriptPath: null
+          transcriptUrl: transcriptUrl,
+          transcriptPath: transcriptPath
+
         }
       }
     );
@@ -1102,8 +1141,9 @@ export async function handleDeleteTranscriptModal(interaction) {
     ticket.closedAt = new Date();
     ticket.closedBy = user.id;
     ticket.closeReason = 'Deleted with transcript';
-    ticket.transcriptUrl = null;
-    ticket.transcriptPath = null;
+    ticket.transcriptUrl = transcriptUrl;
+    ticket.transcriptPath = transcriptPath;
+
     setCachedTicket(channel.id, ticket);
 
 
@@ -1122,7 +1162,8 @@ export async function handleDeleteTranscriptModal(interaction) {
             { name: 'User', value: ticket.userId ? `<@${ticket.userId}>` : 'Unknown', inline: true },
             { name: 'Deleted By', value: user.id ? `<@${user.id}>` : 'Unknown', inline: true },
             { name: 'Category', value: ticket.category || 'Unknown', inline: true },
-            { name: 'Transcript', value: transcriptSent ? '✅ Sent as attachment' : '❌ Failed to send', inline: false }
+            { name: 'Transcript', value: transcriptUrl ? `[View Transcript](${transcriptUrl})` : 'Failed to send', inline: false }
+
           )
           .setColor(colors.error)
           .setTimestamp();
