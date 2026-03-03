@@ -6,7 +6,8 @@ import Category from '../../database/models/Category.js';
 import StaffPoints from '../../database/models/StaffPoints.js';
 
 import { generateHTMLTranscript } from './transcriptGenerator.js';
-import { getTranscriptUrl } from './transcriptServer.js';
+import { uploadTranscriptToGitHub, getGitHubTranscriptUrl } from './githubTranscript.js';
+
 
 
 
@@ -1025,38 +1026,25 @@ export async function handleDeleteTranscriptModal(interaction) {
     const transcriptBuffer = Buffer.from(htmlContent, 'utf-8');
 
     let transcriptUrl = null;
-    let transcriptPath = null;
     let transcriptSent = false;
-    
-    // Save transcript to file for web server
-    const fs = await import('fs');
-    const path = await import('path');
-    const { fileURLToPath } = await import('url');
-    
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-    
-    const transcriptsDir = path.join(__dirname, '../../../transcripts');
-    
-    // Create transcripts directory if it doesn't exist
-    if (!fs.existsSync(transcriptsDir)) {
-      fs.mkdirSync(transcriptsDir, { recursive: true });
-    }
     
     const safeTicketNumber = ticket.ticketNumber || 'unknown';
     const safeCategory = (ticket.category || 'unknown').toLowerCase().replace(/\s+/g, '-');
     const fileName = `ticket-${safeTicketNumber}-${safeCategory}.html`;
-    const filePath = path.join(transcriptsDir, fileName);
     
-    // Save HTML file
-    fs.writeFileSync(filePath, htmlContent);
-    console.log(`[TRANSCRIPT] Saved transcript to: ${filePath}`);
+    // Upload to GitHub
+    console.log(`[TRANSCRIPT] Uploading to GitHub...`);
+    transcriptUrl = await uploadTranscriptToGitHub(ticket.id, htmlContent, fileName);
     
-    // Generate web URL using the transcript server
-    transcriptUrl = getTranscriptUrl(ticket.id);
-    transcriptPath = filePath;
-    
-    console.log(`[TRANSCRIPT] Web URL: ${transcriptUrl}`);
+    if (transcriptUrl) {
+      console.log(`[TRANSCRIPT] GitHub URL: ${transcriptUrl}`);
+    } else {
+      console.log(`[TRANSCRIPT] GitHub upload failed, falling back to local server`);
+      // Fallback to local server if GitHub fails
+      const { getTranscriptUrl } = await import('./transcriptServer.js');
+      transcriptUrl = getTranscriptUrl(ticket.id);
+    }
+
     
     console.log(`[TRANSCRIPT] Config:`, {
 
@@ -1108,6 +1096,7 @@ export async function handleDeleteTranscriptModal(interaction) {
 
           console.log(`[TRANSCRIPT] Transcript notification sent successfully!`);
 
+
           transcriptSent = true;
           
         } catch (sendError) {
@@ -1131,7 +1120,8 @@ export async function handleDeleteTranscriptModal(interaction) {
           closedBy: user.id,
           closeReason: 'Deleted with transcript',
           transcriptUrl: transcriptUrl,
-          transcriptPath: transcriptPath
+          transcriptPath: null
+
 
         }
       }
@@ -1142,7 +1132,8 @@ export async function handleDeleteTranscriptModal(interaction) {
     ticket.closedBy = user.id;
     ticket.closeReason = 'Deleted with transcript';
     ticket.transcriptUrl = transcriptUrl;
-    ticket.transcriptPath = transcriptPath;
+    ticket.transcriptPath = null;
+
 
     setCachedTicket(channel.id, ticket);
 
