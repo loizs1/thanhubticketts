@@ -1,0 +1,116 @@
+[
+  {
+    "id": "1478005071340896367",
+    "content": "",
+    "author": {
+      "id": "871407419828359238",
+      "username": "THANHUB TICKETS",
+      "bot": true,
+      "displayAvatarURL": "https://cdn.discordapp.com/avatars/871407419828359238/c46430d790204dcfaacc4fe865bc5fd8.webp?size=64"
+    },
+    "createdAt": "2026-03-02T12:24:29.014Z",
+    "createdTimestamp": 1772454269014,
+    "attachments": [],
+    "embeds": [
+      {
+        "title": "🔒 Ticket #11 Closed",
+        "description": "This ticket has been closed by <@699934641519460392>",
+        "hexColor": "#ed4245",
+        "fields": [
+          {
+            "name": "👤 Closed By",
+            "value": "<@699934641519460392>",
+            "inline": true
+          },
+          {
+            "name": "📁 Category",
+            "value": "Test-1772202970104",
+            "inline": true
+          },
+          {
+            "name": "🔢 Ticket Number",
+            "value": "#11",
+            "inline": true
+          },
+          {
+            "name": "📝 Reason",
+            "value": "asdasdasd",
+            "inline": false
+          },
+          {
+            "name": "📋 Logs",
+            "value": "📄 Transcript will be saved to <#1344890631092310026>",
+            "inline": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "1478005013967011952",
+    "content": "",
+    "author": {
+      "id": "871407419828359238",
+      "username": "THANHUB TICKETS",
+      "bot": true,
+      "displayAvatarURL": "https://cdn.discordapp.com/avatars/871407419828359238/c46430d790204dcfaacc4fe865bc5fd8.webp?size=64"
+    },
+    "createdAt": "2026-03-02T12:24:15.335Z",
+    "createdTimestamp": 1772454255335,
+    "attachments": [],
+    "embeds": [
+      {
+        "title": "✅ Ticket Claimed",
+        "description": "This ticket has been claimed by <@699934641519460392>",
+        "hexColor": "#57f287",
+        "fields": []
+      }
+    ]
+  },
+  {
+    "id": "1478004993767374900",
+    "content": "**Staff Controls:**",
+    "author": {
+      "id": "871407419828359238",
+      "username": "THANHUB TICKETS",
+      "bot": true,
+      "displayAvatarURL": "https://cdn.discordapp.com/avatars/871407419828359238/c46430d790204dcfaacc4fe865bc5fd8.webp?size=64"
+    },
+    "createdAt": "2026-03-02T12:24:10.519Z",
+    "createdTimestamp": 1772454250519,
+    "attachments": [],
+    "embeds": []
+  },
+  {
+    "id": "1478004992416944209",
+    "content": "<@699934641519460392>",
+    "author": {
+      "id": "871407419828359238",
+      "username": "THANHUB TICKETS",
+      "bot": true,
+      "displayAvatarURL": "https://cdn.discordapp.com/avatars/871407419828359238/c46430d790204dcfaacc4fe865bc5fd8.webp?size=64"
+    },
+    "createdAt": "2026-03-02T12:24:10.197Z",
+    "createdTimestamp": 1772454250197,
+    "attachments": [],
+    "embeds": [
+      {
+        "title": "🎟️ Ticket #11",
+        "description": "**Category:** 🧪 Test-1772202970104\n**User:** <@699934641519460392>",
+        "hexColor": "#5865f2",
+        "fields": [
+          {
+            "name": "Subject",
+            "value": "```\ndasdasdasdas\n```",
+            "inline": false
+          },
+          {
+            "name": "Description",
+            "value": "```\ndasdasdasdasda\n```",
+            "inline": false
+          }
+        ]
+      }
+    ]
+  }
+]

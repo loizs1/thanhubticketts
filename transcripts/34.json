@@ -1,0 +1,95 @@
+[
+  {
+    "id": "1478013776510062672",
+    "content": "",
+    "author": {
+      "id": "871407419828359238",
+      "username": "THANHUB TICKETS",
+      "bot": true,
+      "displayAvatarURL": "https://cdn.discordapp.com/avatars/871407419828359238/c46430d790204dcfaacc4fe865bc5fd8.webp?size=64"
+    },
+    "createdAt": "2026-03-02T12:59:04.488Z",
+    "createdTimestamp": 1772456344488,
+    "attachments": [],
+    "embeds": [
+      {
+        "title": "🔒 Ticket #12 Closed",
+        "description": "This ticket has been closed by <@699934641519460392>",
+        "hexColor": "#ed4245",
+        "fields": [
+          {
+            "name": "👤 Closed By",
+            "value": "<@699934641519460392>",
+            "inline": true
+          },
+          {
+            "name": "📁 Category",
+            "value": "Test-1772202970104",
+            "inline": true
+          },
+          {
+            "name": "🔢 Ticket Number",
+            "value": "#12",
+            "inline": true
+          },
+          {
+            "name": "📝 Reason",
+            "value": "zdasdas",
+            "inline": false
+          },
+          {
+            "name": "📋 Logs",
+            "value": "📄 Transcript will be saved to <#1344890631092310026>",
+            "inline": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "1478013441250955355",
+    "content": "**Staff Controls:**",
+    "author": {
+      "id": "871407419828359238",
+      "username": "THANHUB TICKETS",
+      "bot": true,
+      "displayAvatarURL": "https://cdn.discordapp.com/avatars/871407419828359238/c46430d790204dcfaacc4fe865bc5fd8.webp?size=64"
+    },
+    "createdAt": "2026-03-02T12:57:44.556Z",
+    "createdTimestamp": 1772456264556,
+    "attachments": [],
+    "embeds": []
+  },
+  {
+    "id": "1478013439799459870",
+    "content": "<@699934641519460392>",
+    "author": {
+      "id": "871407419828359238",
+      "username": "THANHUB TICKETS",
+      "bot": true,
+      "displayAvatarURL": "https://cdn.discordapp.com/avatars/871407419828359238/c46430d790204dcfaacc4fe865bc5fd8.webp?size=64"
+    },
+    "createdAt": "2026-03-02T12:57:44.210Z",
+    "createdTimestamp": 1772456264210,
+    "attachments": [],
+    "embeds": [
+      {
+        "title": "🎟️ Ticket #12",
+        "description": "**Category:** 🧪 Test-1772202970104\n**User:** <@699934641519460392>",
+        "hexColor": "#5865f2",
+        "fields": [
+          {
+            "name": "Subject",
+            "value": "```\nadsadasdas\n```",
+            "inline": false
+          },
+          {
+            "name": "Description",
+            "value": "```\ndasdsadasdasdas\n```",
+            "inline": false
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,95 @@
+[
+  {
+    "id": "1478023100112310322",
+    "content": "",
+    "author": {
+      "id": "871407419828359238",
+      "username": "THANHUB TICKETS",
+      "bot": true,
+      "displayAvatarURL": "https://cdn.discordapp.com/avatars/871407419828359238/c46430d790204dcfaacc4fe865bc5fd8.webp?size=64"
+    },
+    "createdAt": "2026-03-02T13:36:07.408Z",
+    "createdTimestamp": 1772458567408,
+    "attachments": [],
+    "embeds": [
+      {
+        "title": "🔒 Ticket #13 Closed",
+        "description": "This ticket has been closed by <@699934641519460392>",
+        "hexColor": "#ed4245",
+        "fields": [
+          {
+            "name": "👤 Closed By",
+            "value": "<@699934641519460392>",
+            "inline": true
+          },
+          {
+            "name": "📁 Category",
+            "value": "Test-1772202790455",
+            "inline": true
+          },
+          {
+            "name": "🔢 Ticket Number",
+            "value": "#13",
+            "inline": true
+          },
+          {
+            "name": "📝 Reason",
+            "value": "asdasdsadas",
+            "inline": false
+          },
+          {
+            "name": "📋 Logs",
+            "value": "📄 Transcript will be saved to <#1344890631092310026>",
+            "inline": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "1478023074434519152",
+    "content": "**Staff Controls:**",
+    "author": {
+      "id": "871407419828359238",
+      "username": "THANHUB TICKETS",
+      "bot": true,
+      "displayAvatarURL": "https://cdn.discordapp.com/avatars/871407419828359238/c46430d790204dcfaacc4fe865bc5fd8.webp?size=64"
+    },
+    "createdAt": "2026-03-02T13:36:01.286Z",
+    "createdTimestamp": 1772458561286,
+    "attachments": [],
+    "embeds": []
+  },
+  {
+    "id": "1478023073050529995",
+    "content": "<@699934641519460392>",
+    "author": {
+      "id": "871407419828359238",
+      "username": "THANHUB TICKETS",
+      "bot": true,
+      "displayAvatarURL": "https://cdn.discordapp.com/avatars/871407419828359238/c46430d790204dcfaacc4fe865bc5fd8.webp?size=64"
+    },
+    "createdAt": "2026-03-02T13:36:00.956Z",
+    "createdTimestamp": 1772458560956,
+    "attachments": [],
+    "embeds": [
+      {
+        "title": "🎟️ Ticket #13",
+        "description": "**Category:** 🧪 Test-1772202790455\n**User:** <@699934641519460392>",
+        "hexColor": "#5865f2",
+        "fields": [
+          {
+            "name": "Subject",
+            "value": "```\ndasdasdasdsadas\n```",
+            "inline": false
+          },
+          {
+            "name": "Description",
+            "value": "```\nasdasdasdasdas\n```",
+            "inline": false
+          }
+        ]
+      }
+    ]
+  }
+]
