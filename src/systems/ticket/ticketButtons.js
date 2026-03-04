@@ -1,4 +1,4 @@
-import { EmbedBuilder, PermissionFlagsBits, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { EmbedBuilder, PermissionFlagsBits, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } from 'discord.js';
 
 import Ticket from '../../database/models/Ticket.js';
 import Config from '../../database/models/Config.js';
@@ -6,10 +6,12 @@ import Category from '../../database/models/Category.js';
 import StaffPoints from '../../database/models/StaffPoints.js';
 
 import { generateHTMLTranscript } from './transcriptGenerator.js';
-import { getTranscriptUrl } from './transcriptServer.js';
 
 import colors from '../../config/colors.js';
 import emojis from '../../config/emojis.js';
+
+// Map to store transcript file paths for download buttons
+const transcriptDownloadMap = new Map();
 
 // Simple in-memory cache for tickets and configs
 const ticketCache = new Map();
@@ -260,14 +262,14 @@ export async function handleCloseModal(interaction) {
       .setStyle(ButtonStyle.Success)
       .setEmoji('🔓');
 
-    const deleteWithTranscriptButton = new ButtonBuilder()
+    const reviewHtmlButton = new ButtonBuilder()
       .setCustomId('ticket_delete_with_transcript')
-      .setLabel('Delete with Transcript')
-      .setStyle(ButtonStyle.Danger)
-      .setEmoji('📄');
+      .setLabel('Delete With Transcript')
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('❌');
 
     const row = new ActionRowBuilder()
-      .addComponents(reopenButton, deleteWithTranscriptButton);
+      .addComponents(reopenButton, reviewHtmlButton);
 
     const transcriptInfo = config?.transcriptChannelId 
       ? `📄 Transcript will be saved to <#${config.transcriptChannelId}>`
@@ -314,7 +316,6 @@ export async function handleCloseModal(interaction) {
       console.error('[CLOSE] Error sending DM to ticket creator:', dmErr);
     }
 
-
     // Send log to ticket log channel
     if (config?.ticketLogChannelId) {
       console.log(`[CLOSE] Sending log to channel: ${config.ticketLogChannelId}`);
@@ -357,7 +358,6 @@ export async function handleCloseModal(interaction) {
       console.log(`[CLOSE] ✗ No ticketLogChannelId configured`);
     }
 
-
     try {
       if (ticket.userId) {
         await channel.permissionOverwrites.delete(ticket.userId);
@@ -365,7 +365,6 @@ export async function handleCloseModal(interaction) {
     } catch (e) {
       // Permission might not exist
     }
-
 
     await interaction.editReply({
       content: `${emojis.success} Ticket #${ticket.ticketNumber || 'unknown'} closed successfully!`
@@ -684,6 +683,64 @@ export async function handleTranscriptButton(interaction) {
   }
 }
 
+// Handle transcript download button click
+export async function handleTranscriptDownloadButton(interaction) {
+  try {
+    await interaction.deferReply({ ephemeral: true });
+    
+    const messageId = interaction.message.id;
+    const transcriptData = transcriptDownloadMap.get(messageId.toString());
+    
+    if (!transcriptData) {
+      return interaction.editReply({
+        content: `${emojis.error} Transcript file not found. It may have been deleted.`
+      });
+    }
+    
+    // Check if staff
+    const guild = interaction.guild;
+    let config = getCachedConfig(guild.id);
+    
+    if (!config) {
+      config = await Config.findOne({ guildId: guild.id });
+      if (config) setCachedConfig(guild.id, config);
+    }
+    
+    if (!isStaffFast(interaction.member, config, null)) {
+      return interaction.editReply({
+        content: `${emojis.error} Only staff members can download transcripts.`
+      });
+    }
+    
+    // Send the transcript file to the user
+    const fs = await import('fs');
+    
+    if (!fs.existsSync(transcriptData.filePath)) {
+      return interaction.editReply({
+        content: `${emojis.error} Transcript file not found on server.`
+      });
+    }
+    
+    const attachment = new AttachmentBuilder(transcriptData.filePath)
+      .setName(transcriptData.fileName);
+    
+    await interaction.editReply({
+      content: `📥 Here's the transcript for Ticket #${transcriptData.ticketNumber}:`,
+      files: [attachment]
+    });
+    
+  } catch (error) {
+    console.error('Error handling transcript download:', error);
+    try {
+      await interaction.editReply({
+        content: `${emojis.error} An error occurred while sending the transcript.`
+      });
+    } catch (e) {
+      // Ignore
+    }
+  }
+}
+
 export async function handleDeleteButton(interaction) {
   try {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -961,8 +1018,6 @@ export async function handleDeleteWithTranscriptButton(interaction) {
 }
 
 export async function handleDeleteTranscriptModal(interaction) {
-
-
   try {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     
@@ -970,16 +1025,9 @@ export async function handleDeleteTranscriptModal(interaction) {
     const guild = interaction.guild;
     const user = interaction.user;
 
-    console.log(`[TRANSCRIPT] Fetching fresh config for guild ${guild.id}`);
     let config = await Config.findOne({ guildId: guild.id });
     if (config) {
       setCachedConfig(guild.id, config);
-      console.log(`[TRANSCRIPT] Fresh config fetched:`, {
-        transcriptChannelId: config.transcriptChannelId,
-        ticketLogChannelId: config.ticketLogChannelId
-      });
-    } else {
-      console.log(`[TRANSCRIPT] No config found for guild ${guild.id}`);
     }
     
     let ticket = getCachedTicket(channel.id);
@@ -995,7 +1043,6 @@ export async function handleDeleteTranscriptModal(interaction) {
       });
     }
 
-    // Fetch category for staff check
     let category = null;
     if (ticket.categoryId) {
       category = await Category.findById(ticket.categoryId);
@@ -1007,7 +1054,6 @@ export async function handleDeleteTranscriptModal(interaction) {
       });
     }
 
-    // Check if ticket is claimed by someone else
     const closeCheck = await canCloseTicket(interaction, ticket);
     if (!closeCheck.allowed) {
       return interaction.editReply({ content: closeCheck.message });
@@ -1018,190 +1064,72 @@ export async function handleDeleteTranscriptModal(interaction) {
     });
 
     const messages = await channel.messages.fetch({ limit: 100 });
-    console.log(`[TRANSCRIPT] Fetched ${messages.size} messages from channel`);
-    console.log(`[TRANSCRIPT] Messages type: ${typeof messages}`);
-    console.log(`[TRANSCRIPT] Messages is Map: ${messages instanceof Map}`);
-    console.log(`[TRANSCRIPT] Messages has values: ${typeof messages.values === 'function'}`);
-    
     const messageArray = Array.from(messages.values());
-    console.log(`[TRANSCRIPT] Message array length: ${messageArray.length}`);
-    console.log(`[TRANSCRIPT] Message array type: ${typeof messageArray}`);
-    console.log(`[TRANSCRIPT] Message array is array: ${Array.isArray(messageArray)}`);
     
-    if (messageArray.length > 0) {
-      console.log(`[TRANSCRIPT] First message:`, JSON.stringify({
-        id: messageArray[0].id,
-        author: messageArray[0].author?.username,
-        content: messageArray[0].content?.substring(0, 50),
-        createdAt: messageArray[0].createdAt
-      }));
-    }
-    
-    console.log(`[TRANSCRIPT] Calling generateHTMLTranscript with ${messageArray.length} messages`);
     const htmlContent = generateHTMLTranscript(ticket, messageArray, guild, channel);
-    console.log(`[TRANSCRIPT] generateHTMLTranscript returned, HTML length: ${htmlContent?.length || 0}`);
 
-    // Save messages to JSON file for transcript server
     const fs = await import('fs');
     const path = await import('path');
     const transcriptsDir = path.join(process.cwd(), 'transcripts');
     
-    // Create transcripts directory if it doesn't exist
     if (!fs.existsSync(transcriptsDir)) {
       fs.mkdirSync(transcriptsDir, { recursive: true });
     }
     
-    // Save messages as JSON
-    const messagesData = messageArray.map(msg => ({
-      id: msg.id,
-      content: msg.content,
-      createdAt: msg.createdAt,
-      createdTimestamp: msg.createdTimestamp,
-      author: {
-        username: msg.author.username,
-        bot: msg.author.bot,
-        system: msg.author.system,
-        displayAvatarURL: msg.author.displayAvatarURL({ size: 128 })
-      },
-      attachments: Array.from(msg.attachments.values()).map(att => ({
-        url: att.url,
-        name: att.name,
-        contentType: att.contentType,
-        size: att.size
-      })),
-      embeds: msg.embeds.map(embed => ({
-        title: embed.title,
-        description: embed.description,
-        hexColor: embed.hexColor,
-        fields: embed.fields,
-        author: embed.author,
-        image: embed.image,
-        thumbnail: embed.thumbnail,
-        footer: embed.footer
-      }))
-    }));
-    
-    const jsonFileName = `ticket-${ticket.id}.json`;
-    const jsonFilePath = path.join(transcriptsDir, jsonFileName);
-    fs.writeFileSync(jsonFilePath, JSON.stringify(messagesData, null, 2));
-    console.log(`[TRANSCRIPT] Saved ${messagesData.length} messages to ${jsonFilePath}`);
-
-    const transcriptBuffer = Buffer.from(htmlContent, 'utf-8');
-
-    let transcriptUrl = null;
-    let transcriptSent = false;
-    
     const safeTicketNumber = ticket.ticketNumber || 'unknown';
     const safeCategory = (ticket.category || 'unknown').toLowerCase().replace(/\s+/g, '-');
-    const fileName = `ticket-${safeTicketNumber}-${safeCategory}.html`;
-
+    const htmlFileName = `ticket-${safeTicketNumber}-${safeCategory}.html`;
+    const htmlFilePath = path.join(transcriptsDir, htmlFileName);
     
-    // Use local transcript server (PebbleHost compatible)
-    console.log(`[TRANSCRIPT] Using local transcript server...`);
-    transcriptUrl = getTranscriptUrl(ticket.id);
-    console.log(`[TRANSCRIPT] Local URL: ${transcriptUrl}`);
+    fs.writeFileSync(htmlFilePath, htmlContent);
 
-
-    
-    console.log(`[TRANSCRIPT] Config:`, {
-
-      transcriptChannelId: config?.transcriptChannelId,
-      ticketLogChannelId: config?.ticketLogChannelId,
-      guildId: guild.id
-    });
+    const htmlAttachment = new AttachmentBuilder(htmlFilePath)
+      .setName(`ticket-${safeTicketNumber}-transcript.html`);
     
     const targetChannelId = config?.transcriptChannelId || config?.ticketLogChannelId;
     
-    console.log(`[TRANSCRIPT] Target channel ID: ${targetChannelId}`);
-    
     if (targetChannelId) {
-      const targetChannel = await guild.channels.fetch(targetChannelId).catch((err) => {
-        console.error(`[TRANSCRIPT] Error fetching channel ${targetChannelId}:`, err);
-        return null;
-      });
+      const targetChannel = await guild.channels.fetch(targetChannelId).catch(() => null);
       
       if (targetChannel) {
-        try {
-          const transcriptEmbed = new EmbedBuilder()
-            .setTitle(`${emojis.ticket} Ticket #${ticket.ticketNumber || 'Unknown'} Transcript`)
-            .setDescription(`Transcript for ticket closed by ${user}`)
-            .addFields(
-              { name: 'Category', value: ticket.category || 'Unknown', inline: true },
-              { name: 'Created By', value: ticket.username || 'Unknown', inline: true },
-              { name: 'Closed By', value: user?.id ? `<@${user.id}>` : 'Unknown', inline: true },
-              { name: 'Subject', value: ticket.subject || 'No subject', inline: false }
-            )
-            .setColor(colors.primary)
-            .setTimestamp();
+        const transcriptEmbed = new EmbedBuilder()
+          .setTitle(`${emojis.ticket} Ticket #${ticket.ticketNumber || 'Unknown'} Transcript`)
+          .setDescription(`Transcript for ticket closed by ${user}`)
+          .addFields(
+            { name: 'Category', value: ticket.category || 'Unknown', inline: true },
+            { name: 'Created By', value: ticket.username || 'Unknown', inline: true },
+            { name: 'Closed By', value: user?.id ? `<@${user.id}>` : 'Unknown', inline: true },
+            { name: 'Subject', value: ticket.subject || 'No subject', inline: false }
+          )
+          .setColor(colors.primary)
+          .setTimestamp();
 
-          // Create button to view transcript online
-          const viewTranscriptButton = new ButtonBuilder()
-            .setLabel('View Transcript Online')
-            .setStyle(ButtonStyle.Link)
-            .setURL(transcriptUrl || 'https://example.com')
-            .setEmoji('🌐');
+        // Add download button for staff
+        const downloadButton = new ButtonBuilder()
+          .setCustomId(`transcript_download_${ticket.ticketNumber}`)
+          .setLabel('📥 Download Transcript')
+          .setStyle(ButtonStyle.Primary);
 
-          const buttonRow = new ActionRowBuilder()
-            .addComponents(viewTranscriptButton);
+        const buttonRow = new ActionRowBuilder().addComponents(downloadButton);
 
-          console.log(`[TRANSCRIPT] Sending transcript notification to channel ${targetChannelId}...`);
-          
-          await targetChannel.send({
-            embeds: [transcriptEmbed],
-            components: [buttonRow]
-          });
-
-          console.log(`[TRANSCRIPT] Transcript notification sent successfully!`);
-
-
-          transcriptSent = true;
-          
-        } catch (sendError) {
-          console.error(`[TRANSCRIPT] Error sending transcript:`, sendError);
-        }
-      } else {
-        console.error(`[TRANSCRIPT] Channel ${targetChannelId} not found or bot lacks permissions`);
+        // Send with HTML file attachment and download button
+        const sentMessage = await targetChannel.send({
+          embeds: [transcriptEmbed],
+          files: [htmlAttachment],
+          components: [buttonRow]
+        });
+        
+        // Store the transcript path in a map for the download button
+        transcriptDownloadMap.set(`${sentMessage.id}`, {
+          filePath: htmlFilePath,
+          fileName: `ticket-${safeTicketNumber}-transcript.html`,
+          ticketNumber: ticket.ticketNumber
+        });
       }
-    } else {
-      console.error(`[TRANSCRIPT] No transcript channel configured`);
     }
 
-
-
-    await Ticket.updateOne(
-      { channelId: channel.id },
-      { 
-        $set: { 
-          status: 'closed',
-          closedAt: new Date().toISOString(),
-          closedBy: user.id,
-          closeReason: 'Deleted with transcript',
-          transcriptUrl: transcriptUrl,
-          transcriptPath: jsonFilePath
-
-
-        }
-      }
-    );
-
-
-    ticket.status = 'closed';
-    ticket.closedAt = new Date();
-    ticket.closedBy = user.id;
-    ticket.closeReason = 'Deleted with transcript';
-    ticket.transcriptUrl = transcriptUrl;
-    ticket.transcriptPath = jsonFilePath;
-
-
-
-    setCachedTicket(channel.id, ticket);
-
-
-    await interaction.editReply({
-      content: `${emojis.success} Transcript ${transcriptSent ? 'generated and sent' : 'generated but failed to send'}! Deleting ticket...`
-    });
-
-    if (config?.ticketLogChannelId) {
+    // Send to log channel (if different)
+    if (config?.ticketLogChannelId && config.ticketLogChannelId !== targetChannelId) {
       const logChannel = await guild.channels.fetch(config.ticketLogChannelId).catch(() => null);
       
       if (logChannel) {
@@ -1211,19 +1139,41 @@ export async function handleDeleteTranscriptModal(interaction) {
             { name: 'Ticket #', value: ticket.ticketNumber?.toString() || 'Unknown', inline: true },
             { name: 'User', value: ticket.userId ? `<@${ticket.userId}>` : 'Unknown', inline: true },
             { name: 'Deleted By', value: user.id ? `<@${user.id}>` : 'Unknown', inline: true },
-            { name: 'Category', value: ticket.category || 'Unknown', inline: true },
-            { name: 'Transcript', value: transcriptUrl ? `[View Transcript](${transcriptUrl})` : 'Failed to send', inline: false }
-
+            { name: 'Category', value: ticket.category || 'Unknown', inline: true }
           )
           .setColor(colors.error)
           .setTimestamp();
 
-        await logChannel.send({ embeds: [logEmbed] }).catch(err => {
-          console.error(`[TRANSCRIPT] Error sending log message:`, err);
+        // Send with HTML file attachment only
+        await logChannel.send({ embeds: [logEmbed], files: [htmlAttachment] }).catch(err => {
+          console.error(`[TRANSCRIPT] Error sending log:`, err);
         });
       }
     }
 
+    await Ticket.updateOne(
+      { channelId: channel.id },
+      { 
+        $set: { 
+          status: 'closed',
+          closedAt: new Date().toISOString(),
+          closedBy: user.id,
+          closeReason: 'Deleted with transcript',
+          transcriptPath: htmlFilePath
+        }
+      }
+    );
+
+    ticket.status = 'closed';
+    ticket.closedAt = new Date();
+    ticket.closedBy = user.id;
+    ticket.transcriptPath = htmlFilePath;
+
+    setCachedTicket(channel.id, ticket);
+
+    await interaction.editReply({
+      content: `${emojis.success} Transcript generated and sent! Deleting ticket...`
+    });
 
     setTimeout(async () => {
       try {
@@ -1241,8 +1191,84 @@ export async function handleDeleteTranscriptModal(interaction) {
           content: `${emojis.error} An error occurred: ${error.message}`
         });
       }
+    } catch (e) {}
+  }
+}
+
+// Export the transcript download map for external access
+export { transcriptDownloadMap };
+
+// Handle HTML transcript download button (legacy support)
+export async function handleDownloadHTMLButton(interaction) {
+  try {
+    await interaction.deferReply({ ephemeral: true });
+    
+    // Get ticket info from the channel
+    const channel = interaction.channel;
+    const guild = interaction.guild;
+    
+    let ticket = getCachedTicket(channel.id);
+    let config = getCachedConfig(guild.id);
+    
+    if (!ticket) {
+      ticket = await Ticket.findByChannelId(channel.id);
+      if (ticket) setCachedTicket(channel.id, ticket);
+    }
+    
+    if (!config) {
+      config = await Config.findOne({ guildId: guild.id });
+      if (config) setCachedConfig(guild.id, config);
+    }
+    
+    if (!ticket) {
+      return interaction.editReply({
+        content: `${emojis.error} This channel is not a ticket channel.`
+      });
+    }
+    
+    // Check if staff
+    if (!isStaffFast(interaction.member, config, null)) {
+      return interaction.editReply({
+        content: `${emojis.error} Only staff members can download transcripts.`
+      });
+    }
+    
+    // Generate and send transcript
+    const messages = await channel.messages.fetch({ limit: 100 });
+    const messageArray = Array.from(messages.values());
+    const htmlContent = generateHTMLTranscript(ticket, messageArray, guild, channel);
+    
+    const fs = await import('fs');
+    const path = await import('path');
+    const transcriptsDir = path.join(process.cwd(), 'transcripts');
+    
+    if (!fs.existsSync(transcriptsDir)) {
+      fs.mkdirSync(transcriptsDir, { recursive: true });
+    }
+    
+    const safeTicketNumber = ticket.ticketNumber || 'unknown';
+    const safeCategory = (ticket.category || 'unknown').toLowerCase().replace(/\s+/g, '-');
+    const htmlFileName = `ticket-${safeTicketNumber}-${safeCategory}.html`;
+    const htmlFilePath = path.join(transcriptsDir, htmlFileName);
+    
+    fs.writeFileSync(htmlFilePath, htmlContent);
+    
+    const attachment = new AttachmentBuilder(htmlFilePath)
+      .setName(`ticket-${safeTicketNumber}-transcript.html`);
+    
+    await interaction.editReply({
+      content: `📥 Here's the transcript for Ticket #${safeTicketNumber}:`,
+      files: [attachment]
+    });
+    
+  } catch (error) {
+    console.error('Error handling download HTML button:', error);
+    try {
+      await interaction.editReply({
+        content: `${emojis.error} An error occurred while generating the transcript.`
+      });
     } catch (e) {
-      console.error('Could not send error reply:', e);
+      // Ignore
     }
   }
 }
@@ -1254,3 +1280,4 @@ function extractBaseChannelName(channelName) {
   }
   return channelName.replace(/^(closed-|reopen-)+/i, '');
 }
+

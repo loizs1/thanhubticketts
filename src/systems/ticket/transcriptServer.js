@@ -12,8 +12,10 @@ const PORT = process.env.TRANSCRIPT_PORT || 3000;
 
 // Helper to get HOST at runtime (not module load)
 function getHost() {
-  return process.env.TRANSCRIPT_HOST || `http://localhost:${PORT}`;
+  // Default to PebbleHost URL, fallback to localhost for development
+  return process.env.TRANSCRIPT_HOST || 'http://thanhubtranscript.my.pebble.host:8143';
 }
+
 
 
 
@@ -154,8 +156,81 @@ export function startTranscriptServer() {
     res.send(html);
   });
   
+  // Download transcript as HTML file (forces download)
+  app.get('/download/:ticketId', async (req, res) => {
+    const { ticketId } = req.params;
+    const db = getDb();
+    
+    // Get ticket data
+    let ticket = null;
+    try {
+      const stmt = db.prepare('SELECT * FROM tickets WHERE id = ?');
+      ticket = stmt.get(ticketId);
+    } catch (e) {
+      console.error('[TRANSCRIPT SERVER] Error fetching ticket:', e);
+    }
+    
+    if (!ticket) {
+      return res.status(404).send('Transcript not found');
+    }
+    
+    // Get messages from file
+    let messages = [];
+    if (ticket.transcriptPath) {
+      try {
+        const fs = await import('fs');
+        const data = fs.readFileSync(ticket.transcriptPath, 'utf8');
+        messages = JSON.parse(data);
+      } catch (e) {
+        console.error('Error loading transcript messages:', e);
+      }
+    }
+    
+    // Convert plain message objects
+    const formattedMessages = messages.map(msg => ({
+      id: msg.id,
+      content: msg.content,
+      createdAt: new Date(msg.createdAt),
+      createdTimestamp: msg.createdTimestamp,
+      author: {
+        username: msg.author.username,
+        bot: msg.author.bot,
+        displayAvatarURL: () => msg.author.displayAvatarURL
+      },
+      attachments: {
+        size: msg.attachments?.length || 0,
+        values: () => msg.attachments?.map(att => ({
+          url: att.url,
+          name: att.name,
+          contentType: att.contentType
+        })) || []
+      },
+      embeds: msg.embeds?.map(embed => ({
+        title: embed.title,
+        description: embed.description,
+        hexColor: embed.hexColor,
+        fields: embed.fields
+      })) || []
+    }));
+    
+    // Generate HTML
+    const html = generateHTMLTranscript(
+      ticket,
+      formattedMessages,
+      { name: ticket.guildName || 'Discord Server' },
+      { name: `ticket-${ticket.ticketNumber}` }
+    );
+    
+    // Force download with Content-Disposition header
+    const filename = `ticket-${ticket.ticketNumber}-${(ticket.category || 'transcript').toLowerCase().replace(/\s+/g, '-')}.html`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  });
+
   // View specific transcript
   app.get('/transcript/:ticketId', async (req, res) => {
+
     const { ticketId } = req.params;
     const db = getDb();
     
@@ -260,6 +335,11 @@ export function startTranscriptServer() {
 export function getTranscriptUrl(ticketId) {
   return `${getHost()}/transcript/${ticketId}`;
 }
+
+export function getDownloadUrl(ticketId) {
+  return `${getHost()}/download/${ticketId}`;
+}
+
 
 
 

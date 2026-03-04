@@ -11,7 +11,9 @@ import {
   handleAddUserButton, 
   handleAddUserModal,
   handleDeleteWithTranscriptButton,
-  handleDeleteTranscriptModal 
+  handleDeleteTranscriptModal,
+  handleDownloadHTMLButton,
+  handleTranscriptDownloadButton
 } from '../systems/ticket/ticketButtons.js';
 import { generateLeaderboardEmbed } from '../commands/ticket/leaderboard.js';
 
@@ -95,6 +97,12 @@ export default {
         else if (customId === 'ticket_delete_with_transcript') {
           await handleDeleteWithTranscriptButton(interaction);
         }
+        else if (customId.startsWith('ticket_download_html')) {
+          await handleDownloadHTMLButton(interaction);
+        }
+        else if (customId.startsWith('transcript_download_')) {
+          await handleTranscriptDownloadButton(interaction);
+        }
       }
       
       // Modals
@@ -142,3 +150,4 @@ export default {
     }
   }
 };
+
