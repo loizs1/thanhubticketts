@@ -6,11 +6,7 @@ import Category from '../../database/models/Category.js';
 import StaffPoints from '../../database/models/StaffPoints.js';
 
 import { generateHTMLTranscript } from './transcriptGenerator.js';
-import { uploadTranscriptToGitHub, getGitHubTranscriptUrl } from './githubTranscript.js';
-
-
-
-
+import { getTranscriptUrl } from './transcriptServer.js';
 
 import colors from '../../config/colors.js';
 import emojis from '../../config/emojis.js';
@@ -1022,7 +1018,74 @@ export async function handleDeleteTranscriptModal(interaction) {
     });
 
     const messages = await channel.messages.fetch({ limit: 100 });
-    const htmlContent = generateHTMLTranscript(ticket, Array.from(messages.values()), guild, channel);
+    console.log(`[TRANSCRIPT] Fetched ${messages.size} messages from channel`);
+    console.log(`[TRANSCRIPT] Messages type: ${typeof messages}`);
+    console.log(`[TRANSCRIPT] Messages is Map: ${messages instanceof Map}`);
+    console.log(`[TRANSCRIPT] Messages has values: ${typeof messages.values === 'function'}`);
+    
+    const messageArray = Array.from(messages.values());
+    console.log(`[TRANSCRIPT] Message array length: ${messageArray.length}`);
+    console.log(`[TRANSCRIPT] Message array type: ${typeof messageArray}`);
+    console.log(`[TRANSCRIPT] Message array is array: ${Array.isArray(messageArray)}`);
+    
+    if (messageArray.length > 0) {
+      console.log(`[TRANSCRIPT] First message:`, JSON.stringify({
+        id: messageArray[0].id,
+        author: messageArray[0].author?.username,
+        content: messageArray[0].content?.substring(0, 50),
+        createdAt: messageArray[0].createdAt
+      }));
+    }
+    
+    console.log(`[TRANSCRIPT] Calling generateHTMLTranscript with ${messageArray.length} messages`);
+    const htmlContent = generateHTMLTranscript(ticket, messageArray, guild, channel);
+    console.log(`[TRANSCRIPT] generateHTMLTranscript returned, HTML length: ${htmlContent?.length || 0}`);
+
+    // Save messages to JSON file for transcript server
+    const fs = await import('fs');
+    const path = await import('path');
+    const transcriptsDir = path.join(process.cwd(), 'transcripts');
+    
+    // Create transcripts directory if it doesn't exist
+    if (!fs.existsSync(transcriptsDir)) {
+      fs.mkdirSync(transcriptsDir, { recursive: true });
+    }
+    
+    // Save messages as JSON
+    const messagesData = messageArray.map(msg => ({
+      id: msg.id,
+      content: msg.content,
+      createdAt: msg.createdAt,
+      createdTimestamp: msg.createdTimestamp,
+      author: {
+        username: msg.author.username,
+        bot: msg.author.bot,
+        system: msg.author.system,
+        displayAvatarURL: msg.author.displayAvatarURL({ size: 128 })
+      },
+      attachments: Array.from(msg.attachments.values()).map(att => ({
+        url: att.url,
+        name: att.name,
+        contentType: att.contentType,
+        size: att.size
+      })),
+      embeds: msg.embeds.map(embed => ({
+        title: embed.title,
+        description: embed.description,
+        hexColor: embed.hexColor,
+        fields: embed.fields,
+        author: embed.author,
+        image: embed.image,
+        thumbnail: embed.thumbnail,
+        footer: embed.footer
+      }))
+    }));
+    
+    const jsonFileName = `ticket-${ticket.id}.json`;
+    const jsonFilePath = path.join(transcriptsDir, jsonFileName);
+    fs.writeFileSync(jsonFilePath, JSON.stringify(messagesData, null, 2));
+    console.log(`[TRANSCRIPT] Saved ${messagesData.length} messages to ${jsonFilePath}`);
+
     const transcriptBuffer = Buffer.from(htmlContent, 'utf-8');
 
     let transcriptUrl = null;
@@ -1031,19 +1094,13 @@ export async function handleDeleteTranscriptModal(interaction) {
     const safeTicketNumber = ticket.ticketNumber || 'unknown';
     const safeCategory = (ticket.category || 'unknown').toLowerCase().replace(/\s+/g, '-');
     const fileName = `ticket-${safeTicketNumber}-${safeCategory}.html`;
+
     
-    // Upload to GitHub
-    console.log(`[TRANSCRIPT] Uploading to GitHub...`);
-    transcriptUrl = await uploadTranscriptToGitHub(ticket.id, htmlContent, fileName);
-    
-    if (transcriptUrl) {
-      console.log(`[TRANSCRIPT] GitHub URL: ${transcriptUrl}`);
-    } else {
-      console.log(`[TRANSCRIPT] GitHub upload failed, falling back to local server`);
-      // Fallback to local server if GitHub fails
-      const { getTranscriptUrl } = await import('./transcriptServer.js');
-      transcriptUrl = getTranscriptUrl(ticket.id);
-    }
+    // Use local transcript server (PebbleHost compatible)
+    console.log(`[TRANSCRIPT] Using local transcript server...`);
+    transcriptUrl = getTranscriptUrl(ticket.id);
+    console.log(`[TRANSCRIPT] Local URL: ${transcriptUrl}`);
+
 
     
     console.log(`[TRANSCRIPT] Config:`, {
@@ -1120,19 +1177,21 @@ export async function handleDeleteTranscriptModal(interaction) {
           closedBy: user.id,
           closeReason: 'Deleted with transcript',
           transcriptUrl: transcriptUrl,
-          transcriptPath: null
+          transcriptPath: jsonFilePath
 
 
         }
       }
     );
 
+
     ticket.status = 'closed';
     ticket.closedAt = new Date();
     ticket.closedBy = user.id;
     ticket.closeReason = 'Deleted with transcript';
     ticket.transcriptUrl = transcriptUrl;
-    ticket.transcriptPath = null;
+    ticket.transcriptPath = jsonFilePath;
+
 
 
     setCachedTicket(channel.id, ticket);

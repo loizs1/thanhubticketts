@@ -26,7 +26,7 @@ export async function uploadTranscriptToGitHub(ticketId, htmlContent, fileName) 
     try {
       const getResponse = await fetch(getUrl, {
         headers: {
-          'Authorization': `token ${GITHUB_TOKEN}`,
+          'Authorization': `Bearer ${GITHUB_TOKEN}`,
           'Accept': 'application/vnd.github.v3+json'
         }
       });
@@ -55,7 +55,7 @@ export async function uploadTranscriptToGitHub(ticketId, htmlContent, fileName) 
     const response = await fetch(putUrl, {
       method: 'PUT',
       headers: {
-        'Authorization': `token ${GITHUB_TOKEN}`,
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
         'Accept': 'application/vnd.github.v3+json',
         'Content-Type': 'application/json'
       },
