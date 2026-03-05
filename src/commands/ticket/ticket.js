@@ -8,6 +8,7 @@ import colors from '../../config/colors.js';
 import emojis from '../../config/emojis.js';
 import { generateHTMLTranscript } from '../../systems/ticket/transcriptGenerator.js';
 import { getTranscriptUrl } from '../../systems/ticket/transcriptServer.js';
+import { refreshTicketPanel } from '../../systems/ticket/ticketPanel.js';
 
 
 // Simple in-memory cache for tickets and configs
@@ -331,6 +332,13 @@ async function handleDelete(interaction, ticket, channel, guildId) {
     }
   }, 1000);
 
+  // Refresh ticket panel so users can create new tickets
+  try {
+    await refreshTicketPanel(interaction.guild, config);
+  } catch (err) {
+    console.log('[PANEL] Could not refresh panel:', err.message);
+  }
+
   await interaction.editReply({
     content: `${emojis.success} Ticket deleted successfully!`
   });
@@ -543,6 +551,13 @@ async function handleClose(interaction, ticket, channel, guildId) {
   await interaction.editReply({
     content: `${emojis.success} Ticket closed successfully! Channel renamed to ${closedName}`
   });
+
+  // Refresh ticket panel so users can create new tickets
+  try {
+    await refreshTicketPanel(interaction.guild, config);
+  } catch (err) {
+    console.log('[PANEL] Could not refresh panel:', err.message);
+  }
 }
 
 async function handleReopen(interaction, ticket, channel, guildId) {

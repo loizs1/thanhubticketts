@@ -6,6 +6,7 @@ import Category from '../../database/models/Category.js';
 import StaffPoints from '../../database/models/StaffPoints.js';
 
 import { generateHTMLTranscript } from './transcriptGenerator.js';
+import { refreshTicketPanel } from './ticketPanel.js';
 
 import colors from '../../config/colors.js';
 import emojis from '../../config/emojis.js';
@@ -369,6 +370,13 @@ export async function handleCloseModal(interaction) {
     await interaction.editReply({
       content: `${emojis.success} Ticket #${ticket.ticketNumber || 'unknown'} closed successfully!`
     });
+
+    // Refresh ticket panel so users can create new tickets
+    try {
+      await refreshTicketPanel(guild, config);
+    } catch (err) {
+      console.log('[PANEL] Could not refresh panel:', err.message);
+    }
 
   } catch (error) {
     console.error('Error closing ticket:', error);
@@ -823,6 +831,13 @@ export async function handleDeleteButton(interaction) {
 
     await channel.delete();
 
+    // Refresh ticket panel so users can create new tickets
+    try {
+      await refreshTicketPanel(guild, config);
+    } catch (err) {
+      console.log('[PANEL] Could not refresh panel:', err.message);
+    }
+
   } catch (error) {
     console.error('Error deleting ticket:', error);
     try {
@@ -1178,6 +1193,13 @@ export async function handleDeleteTranscriptModal(interaction) {
     setTimeout(async () => {
       try {
         await channel.delete();
+        
+        // Refresh ticket panel so users can create new tickets
+        try {
+          await refreshTicketPanel(guild, config);
+        } catch (err) {
+          console.log('[PANEL] Could not refresh panel:', err.message);
+        }
       } catch (error) {
         console.error('Error deleting channel:', error);
       }
@@ -1185,6 +1207,7 @@ export async function handleDeleteTranscriptModal(interaction) {
 
   } catch (error) {
     console.error('Error deleting with transcript:', error);
+
     try {
       if (interaction.deferred) {
         await interaction.editReply({
@@ -1280,4 +1303,3 @@ function extractBaseChannelName(channelName) {
   }
   return channelName.replace(/^(closed-|reopen-)+/i, '');
 }
-

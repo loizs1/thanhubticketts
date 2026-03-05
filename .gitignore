@@ -21,5 +21,10 @@ Thumbs.db
 *.swp
 *.swo
 
+# Database
+database.sqlite
+database.sqlite-shm
+database.sqlite-wal
+
 # Transcripts (optional, kann auch committed werden)
 transcripts/*.html
