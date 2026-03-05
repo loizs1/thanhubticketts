@@ -104,7 +104,7 @@ export default {
     try {
       // Check cache first for ticket
       let ticket = getCachedTicket(channel.id);
-      
+
       if (!ticket) {
         ticket = await Ticket.findByChannelId(channel.id);
         if (ticket) setCachedTicket(channel.id, ticket);
@@ -119,7 +119,7 @@ export default {
       // Check if user is staff - optimized
       const member = interaction.member;
       let isStaff = false;
-      
+
       // Quick admin check first
       if (member.permissions.has(PermissionFlagsBits.Administrator)) {
         isStaff = true;
@@ -130,21 +130,21 @@ export default {
           config = await Config.findOne({ guildId });
           if (config) setCachedConfig(guildId, config);
         }
-        
+
         // Check global admin role (from /setup config staff)
         if (config?.staffRoleId && member.roles.cache.has(config.staffRoleId)) {
           isStaff = true;
         }
-        
+
         // Check category-specific staff roles
         if (!isStaff && ticket?.category) {
           const category = await Category.findOne({
             guildId: guildId,
             name: ticket.category
           }).first();
-          
+
           if (category?.staffRoleIds?.length > 0) {
-            const hasStaffRole = category.staffRoleIds.some(roleId => 
+            const hasStaffRole = category.staffRoleIds.some(roleId =>
               member.roles.cache.has(roleId)
             );
             if (hasStaffRole) {
@@ -207,7 +207,7 @@ export default {
 // Helper function to get base channel name (without prefixes)
 function getBaseChannelName(ticket) {
   let categoryName = ticket.category;
-  
+
   if (!categoryName && ticket.channelName) {
     const parts = ticket.channelName.split('-');
     if (parts.length >= 2) {
@@ -219,11 +219,11 @@ function getBaseChannelName(ticket) {
       }
     }
   }
-  
+
   if (!categoryName) {
     categoryName = 'ticket';
   }
-  
+
   const cleanCategory = categoryName.toLowerCase().replace(/\s+/g, '-');
   return `${cleanCategory}-${String(ticket.ticketNumber).padStart(2, '0')}`;
 }
@@ -235,18 +235,18 @@ async function canCloseTicket(interaction, ticket) {
   if (!ticket.claimedBy) {
     return { allowed: true };
   }
-  
+
   // If claimed by the user themselves, they can close
   if (ticket.claimedBy === interaction.user.id) {
     return { allowed: true };
   }
-  
+
   // Otherwise, only the claimer can close - admin and staff cannot override
   const claimedByUser = await interaction.guild.members.fetch(ticket.claimedBy).catch(() => null);
   const claimedByName = claimedByUser ? claimedByUser.user.tag : 'Another staff member';
-  
-  return { 
-    allowed: false, 
+
+  return {
+    allowed: false,
     message: `${emojis.error} This ticket is claimed by **${claimedByName}**. Only they can close it.`
   };
 }
@@ -258,24 +258,25 @@ async function canReopenTicket(interaction, ticket) {
   if (!ticket.claimedBy) {
     return { allowed: true };
   }
-  
+
   // If claimed by the user themselves, they can reopen
   if (ticket.claimedBy === interaction.user.id) {
     return { allowed: true };
   }
-  
+
   // Otherwise, only the claimer can reopen - admin and staff cannot override
   const claimedByUser = await interaction.guild.members.fetch(ticket.claimedBy).catch(() => null);
   const claimedByName = claimedByUser ? claimedByUser.user.tag : 'Another staff member';
-  
-  return { 
-    allowed: false, 
+
+  return {
+    allowed: false,
     message: `${emojis.error} This ticket is claimed by **${claimedByName}**. Only they can reopen it.`
   };
 }
 
 
 async function handleDelete(interaction, ticket, channel, guildId) {
+  const initialStatus = ticket.status;
   const reason = interaction.options.getString('reason') || 'No reason provided';
 
   // Check if ticket is claimed by someone else
@@ -287,8 +288,8 @@ async function handleDelete(interaction, ticket, channel, guildId) {
   // Use ISO string for dates
   await Ticket.updateOne(
     { channelId: channel.id },
-    { 
-      $set: { 
+    {
+      $set: {
         status: 'closed',
         closedAt: new Date().toISOString(),
         closedBy: interaction.user.id,
@@ -305,7 +306,7 @@ async function handleDelete(interaction, ticket, channel, guildId) {
 
   if (config?.ticketLogChannelId) {
     const logChannel = await interaction.guild.channels.fetch(config.ticketLogChannelId).catch(() => null);
-    
+
     if (logChannel) {
       const logEmbed = new EmbedBuilder()
         .setTitle(`${emojis.danger} Ticket Deleted`)
@@ -321,6 +322,19 @@ async function handleDelete(interaction, ticket, channel, guildId) {
         .setTimestamp();
 
       await logChannel.send({ embeds: [logEmbed] });
+    }
+  }
+
+  // Award points for deleting ticket (if it was still open)
+  const pointsEnabled = config?.pointsEnabled !== false;
+  const pointsToAward = config?.pointsOnClose || 1;
+
+  if (pointsEnabled && pointsToAward > 0 && initialStatus !== 'closed') {
+    try {
+      await StaffPoints.addPoints(guildId, interaction.user.id, interaction.user.tag, pointsToAward, 'close');
+      console.log(`[POINTS] Awarded ${pointsToAward} points to ${interaction.user.tag} for deleting ticket #${ticket.ticketNumber}`);
+    } catch (e) {
+      console.error('[POINTS] Error adding delete points:', e);
     }
   }
 
@@ -366,14 +380,14 @@ async function handleClose(interaction, ticket, channel, guildId) {
     // Fetch messages from the channel
     const messages = await channel.messages.fetch({ limit: 100 });
     const messageArray = Array.from(messages.values()).reverse();
-    
+
     // Generate HTML transcript
     const guild = interaction.guild;
     const html = generateHTMLTranscript(ticket, messageArray, guild, channel);
-    
+
     // Save transcript URL
     transcriptUrl = getTranscriptUrl(ticket.id);
-    
+
     // Store messages in database for web viewing
     const messageData = messageArray.map(msg => ({
       id: msg.id,
@@ -398,7 +412,7 @@ async function handleClose(interaction, ticket, channel, guildId) {
         fields: embed.fields
       }))
     }));
-    
+
     // Save to a JSON file for the web server to read
     const fs = await import('fs');
     const path = await import('path');
@@ -408,12 +422,12 @@ async function handleClose(interaction, ticket, channel, guildId) {
     }
     const transcriptPath = path.join(transcriptDir, `${ticket.id}.json`);
     fs.writeFileSync(transcriptPath, JSON.stringify(messageData, null, 2));
-    
+
     // Update ticket with transcript URL
     await Ticket.updateOne(
       { channelId: channel.id },
-      { 
-        $set: { 
+      {
+        $set: {
           transcriptUrl: transcriptUrl,
           transcriptPath: transcriptPath
         }
@@ -426,8 +440,8 @@ async function handleClose(interaction, ticket, channel, guildId) {
   // Use ISO string for dates
   await Ticket.updateOne(
     { channelId: channel.id },
-    { 
-      $set: { 
+    {
+      $set: {
         status: 'closed',
         closedAt: new Date().toISOString(),
         closedBy: interaction.user.id,
@@ -464,7 +478,7 @@ async function handleClose(interaction, ticket, channel, guildId) {
   if (transcriptUrl) {
     closeDescription += `\n\n📄 **[View Transcript](${transcriptUrl})**`;
   }
-  
+
   const closeEmbed = new EmbedBuilder()
     .setTitle(`${emojis.lock} Ticket #${ticket.ticketNumber || 'Unknown'} Closed`)
     .setDescription(closeDescription)
@@ -518,7 +532,7 @@ async function handleClose(interaction, ticket, channel, guildId) {
   // Add points for closing ticket (only if points are enabled)
   const pointsEnabled = config?.pointsEnabled !== false;
   const pointsToAward = config?.pointsOnClose || 1;
-  
+
   if (pointsEnabled && pointsToAward > 0) {
     try {
       await StaffPoints.addPoints(guildId, interaction.user.id, interaction.user.tag, pointsToAward, 'close');
@@ -526,10 +540,10 @@ async function handleClose(interaction, ticket, channel, guildId) {
       console.error('[POINTS] Error adding close points:', e);
     }
   }
-  
+
   if (config?.ticketLogChannelId) {
     const logChannel = await interaction.guild.channels.fetch(config.ticketLogChannelId).catch(() => null);
-    
+
     if (logChannel) {
       const logEmbed = new EmbedBuilder()
         .setTitle(`${emojis.ticket} Ticket Closed`)
@@ -576,8 +590,8 @@ async function handleReopen(interaction, ticket, channel, guildId) {
   // Use ISO string for dates
   await Ticket.updateOne(
     { channelId: channel.id },
-    { 
-      $set: { 
+    {
+      $set: {
         status: 'open',
         reopenedAt: new Date().toISOString(),
         reopenedBy: interaction.user.id,
@@ -623,10 +637,10 @@ async function handleReopen(interaction, ticket, channel, guildId) {
     config = await Config.findOne({ guildId });
     if (config) setCachedConfig(guildId, config);
   }
-  
+
   if (config?.ticketLogChannelId) {
     const logChannel = await interaction.guild.channels.fetch(config.ticketLogChannelId).catch(() => null);
-    
+
     if (logChannel) {
       const logEmbed = new EmbedBuilder()
         .setTitle(`${emojis.ticket} Ticket Reopened`)
@@ -663,10 +677,10 @@ async function handleClaim(interaction, ticket, channel, guildId) {
         content: `${emojis.error} You have already claimed this ticket.`
       });
     }
-    
+
     const claimedByUser = await interaction.guild.members.fetch(ticket.claimedBy).catch(() => null);
     const claimedByName = claimedByUser ? claimedByUser.user.tag : 'Another staff member';
-    
+
     return interaction.editReply({
       content: `${emojis.error} This ticket is already claimed by **${claimedByName}**.`
     });
@@ -694,7 +708,7 @@ async function handleAdd(interaction, ticket, channel) {
   const user = interaction.options.getUser('user');
 
   const member = await interaction.guild.members.fetch(user.id).catch(() => null);
-  
+
   if (!member) {
     return interaction.editReply({
       content: `${emojis.error} User not found in the server.`
@@ -741,7 +755,7 @@ async function handleRemove(interaction, ticket, channel) {
 
   const participants = ticket.participants || [];
   const newParticipants = participants.filter(p => p !== user.id);
-  
+
   await Ticket.updateOne(
     { channelId: channel.id },
     { $set: { participants: newParticipants } }

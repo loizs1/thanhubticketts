@@ -54,17 +54,17 @@ function isStaffFast(member, config, category = null) {
     console.log('[STAFF CHECK] No member provided');
     return false;
   }
-  
+
   // Check admin permission first (fastest)
   if (member.permissions.has(PermissionFlagsBits.Administrator)) {
     console.log('[STAFF CHECK] User has Administrator permission');
     return true;
   }
-  
+
   // Check category-specific staff roles first (if category provided)
   if (category && category.staffRoleIds && category.staffRoleIds.length > 0) {
     console.log('[STAFF CHECK] Checking category staff roles:', category.staffRoleIds);
-    const hasCategoryStaffRole = category.staffRoleIds.some(roleId => 
+    const hasCategoryStaffRole = category.staffRoleIds.some(roleId =>
       member.roles.cache.has(roleId)
     );
     console.log('[STAFF CHECK] Has category staff role:', hasCategoryStaffRole);
@@ -73,7 +73,7 @@ function isStaffFast(member, config, category = null) {
       return true;
     }
   }
-  
+
   // Check staff roles from global config
   if (config) {
     console.log('[STAFF CHECK] Config found:', {
@@ -81,7 +81,7 @@ function isStaffFast(member, config, category = null) {
       adminRoleId: config.adminRoleId,
       userRoles: Array.from(member.roles.cache.keys())
     });
-    
+
     if (config.staffRoleId && member.roles.cache.has(config.staffRoleId)) {
       console.log('[STAFF CHECK] User has global staff role');
       return true;
@@ -90,24 +90,24 @@ function isStaffFast(member, config, category = null) {
       console.log('[STAFF CHECK] User has admin role');
       return true;
     }
-    
+
     console.log('[STAFF CHECK] User does not have required roles');
   } else {
     console.log('[STAFF CHECK] No config provided');
   }
-  
+
   return false;
 }
 
 // Ultra-fast staff check for reopen (no category fetch needed)
 function isStaffFastBasic(member, config) {
   if (!member) return false;
-  
+
   // Check admin permission first (fastest)
   if (member.permissions.has(PermissionFlagsBits.Administrator)) {
     return true;
   }
-  
+
   // Check staff roles from global config only
   if (config) {
     if (config.staffRoleId && member.roles.cache.has(config.staffRoleId)) {
@@ -117,7 +117,7 @@ function isStaffFastBasic(member, config) {
       return true;
     }
   }
-  
+
   return false;
 }
 
@@ -127,23 +127,23 @@ async function canCloseTicket(interaction, ticket) {
   if (!ticket.claimedBy) {
     return { allowed: true };
   }
-  
+
   // If claimed by the user themselves, they can close
   if (ticket.claimedBy === interaction.user.id) {
     return { allowed: true };
   }
-  
+
   // If user is admin, they can close any ticket
   if (interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
     return { allowed: true };
   }
-  
+
   // Otherwise, only the claimer can close
   const claimedByUser = await interaction.guild.members.fetch(ticket.claimedBy).catch(() => null);
   const claimedByName = claimedByUser ? claimedByUser.user.tag : 'Another staff member';
-  
-  return { 
-    allowed: false, 
+
+  return {
+    allowed: false,
     message: `${emojis.error} This ticket is claimed by **${claimedByName}**. Only they or an administrator can close it.`
   };
 }
@@ -185,7 +185,7 @@ export async function handleCloseButton(interaction) {
 export async function handleCloseModal(interaction) {
   try {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    
+
     const channel = interaction.channel;
     const guild = interaction.guild;
     const user = interaction.user;
@@ -193,12 +193,12 @@ export async function handleCloseModal(interaction) {
 
     let ticket = getCachedTicket(channel.id);
     let config = getCachedConfig(guild.id);
-    
+
     if (!ticket) {
       ticket = await Ticket.findByChannelId(channel.id);
       if (ticket) setCachedTicket(channel.id, ticket);
     }
-    
+
     if (!config) {
       config = await Config.findOne({ guildId: guild.id });
       if (config) setCachedConfig(guild.id, config);
@@ -215,7 +215,7 @@ export async function handleCloseModal(interaction) {
     if (ticket.categoryId) {
       category = await Category.findById(ticket.categoryId);
     }
-    
+
     if (!isStaffFast(interaction.member, config, category)) {
       return interaction.editReply({
         content: `${emojis.error} Only staff members can close tickets.`
@@ -237,8 +237,8 @@ export async function handleCloseModal(interaction) {
 
     await Ticket.updateOne(
       { channelId: channel.id },
-      { 
-        $set: { 
+      {
+        $set: {
           status: 'closed',
           closedAt: new Date().toISOString(),
           closedBy: user.id,
@@ -255,7 +255,7 @@ export async function handleCloseModal(interaction) {
 
     const baseName = extractBaseChannelName(channel.name);
     const newChannelName = `closed-${baseName}`;
-    await channel.setName(newChannelName).catch(() => {});
+    await channel.setName(newChannelName).catch(() => { });
 
     const reopenButton = new ButtonBuilder()
       .setCustomId('ticket_reopen')
@@ -272,7 +272,7 @@ export async function handleCloseModal(interaction) {
     const row = new ActionRowBuilder()
       .addComponents(reopenButton, reviewHtmlButton);
 
-    const transcriptInfo = config?.transcriptChannelId 
+    const transcriptInfo = config?.transcriptChannelId
       ? `📄 Transcript will be saved to <#${config.transcriptChannelId}>`
       : '📄 Transcript saved locally';
 
@@ -320,20 +320,20 @@ export async function handleCloseModal(interaction) {
     // Send log to ticket log channel
     if (config?.ticketLogChannelId) {
       console.log(`[CLOSE] Sending log to channel: ${config.ticketLogChannelId}`);
-      
+
       const logChannel = await guild.channels.fetch(config.ticketLogChannelId).catch((err) => {
         console.error(`[CLOSE] Error fetching log channel:`, err.message);
         return null;
       });
-      
+
       if (logChannel) {
         console.log(`[CLOSE] Log channel found: ${logChannel.name}`);
-        
+
         // Check permissions
         const botMember = guild.members.me;
         const canSend = logChannel.permissionsFor(botMember)?.has(PermissionFlagsBits.SendMessages);
         console.log(`[CLOSE] Bot can send messages: ${canSend}`);
-        
+
         const logEmbed = new EmbedBuilder()
           .setTitle(`${emojis.lock} Ticket Closed`)
           .addFields(
@@ -371,6 +371,19 @@ export async function handleCloseModal(interaction) {
       content: `${emojis.success} Ticket #${ticket.ticketNumber || 'unknown'} closed successfully!`
     });
 
+    // Award points for closing ticket
+    const pointsEnabled = config?.pointsEnabled !== false;
+    const pointsToAward = config?.pointsOnClose || 1;
+
+    if (pointsEnabled && pointsToAward > 0) {
+      try {
+        await StaffPoints.addPoints(guild.id, user.id, user.tag, pointsToAward, 'close');
+        console.log(`[POINTS] Awarded ${pointsToAward} points to ${user.tag} for closing ticket #${ticket.ticketNumber}`);
+      } catch (e) {
+        console.error('[POINTS] Error adding close points:', e);
+      }
+    }
+
     // Refresh ticket panel so users can create new tickets
     try {
       await refreshTicketPanel(guild, config);
@@ -397,15 +410,15 @@ export async function handleReopenButton(interaction) {
   const channel = interaction.channel;
   const guild = interaction.guild;
   const user = interaction.user;
-  
+
   try {
     // DEFER IMMEDIATELY - must be within 3 seconds
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    
+
     // FAST PATH: Use cache first
     let ticket = getCachedTicket(channel.id);
     let config = getCachedConfig(guild.id);
-    
+
     if (!ticket) {
       // Use findByChannelId - it's synchronous with SQLite
       ticket = Ticket.findByChannelId(channel.id);
@@ -420,17 +433,17 @@ export async function handleReopenButton(interaction) {
 
     // FAST staff check - no category fetch needed for reopen
     const isStaff = isStaffFastBasic(interaction.member, config);
-    
+
     if (!isStaff) {
       // Only fetch config if needed
       if (!config) {
         config = await Config.findOne({ guildId: guild.id });
         if (config) setCachedConfig(guild.id, config);
       }
-      
+
       // Recheck with fetched config
       const recheck = isStaffFastBasic(interaction.member, config);
-      
+
       if (!recheck) {
         return interaction.editReply({
           content: `${emojis.error} Only staff members can reopen tickets.`
@@ -441,7 +454,7 @@ export async function handleReopenButton(interaction) {
     // Check if already open
     const isActuallyOpen = ticket.status && ticket.status !== 'closed';
     const hasClosedPrefix = channel.name.toLowerCase().startsWith('closed-');
-    
+
     if (isActuallyOpen && !hasClosedPrefix) {
       return interaction.editReply({
         content: `${emojis.error} This ticket is already open.`
@@ -450,7 +463,7 @@ export async function handleReopenButton(interaction) {
 
     // Prepare updates
     const now = new Date();
-    const updateData = { 
+    const updateData = {
       status: 'open',
       reopenedAt: now.toISOString(),
       reopenedBy: user.id,
@@ -463,7 +476,7 @@ export async function handleReopenButton(interaction) {
     const baseName = extractBaseChannelName(channel.name);
     await Promise.all([
       Ticket.updateOne({ channelId: channel.id }, { $set: updateData }),
-      channel.setName(baseName).catch(() => {})
+      channel.setName(baseName).catch(() => { })
     ]);
 
     // Update cache immediately
@@ -482,7 +495,7 @@ export async function handleReopenButton(interaction) {
         SendMessages: true,
         AttachFiles: true,
         ReadMessageHistory: true,
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     // Fire-and-forget: Send reopen message (don't await)
@@ -492,7 +505,7 @@ export async function handleReopenButton(interaction) {
       .setColor(colors.success)
       .setTimestamp();
 
-    channel.send({ embeds: [reopenEmbed] }).catch(() => {});
+    channel.send({ embeds: [reopenEmbed] }).catch(() => { });
 
     console.log(`[REOPEN] Total time: ${Date.now() - startTime}ms`);
 
@@ -513,14 +526,14 @@ export async function handleReopenButton(interaction) {
 export async function handleClaimButton(interaction) {
   try {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    
+
     const channel = interaction.channel;
     const guild = interaction.guild;
     const user = interaction.user;
 
     let ticket = getCachedTicket(channel.id);
     let config = getCachedConfig(guild.id);
-    
+
     if (!ticket) {
       ticket = await Ticket.findByChannelId(channel.id);
       if (ticket) setCachedTicket(channel.id, ticket);
@@ -537,7 +550,7 @@ export async function handleClaimButton(interaction) {
     if (ticket.categoryId) {
       category = await Category.findById(ticket.categoryId);
     }
-    
+
     // Fast staff check with category
     if (!isStaffFast(interaction.member, config, category)) {
       if (!config) {
@@ -566,10 +579,10 @@ export async function handleClaimButton(interaction) {
           content: `${emojis.error} You have already claimed this ticket.`
         });
       }
-      
+
       const claimedByUser = await guild.members.fetch(ticket.claimedBy).catch(() => null);
       const claimedByName = claimedByUser ? claimedByUser.user.tag : 'Another staff member';
-      
+
       return interaction.editReply({
         content: `${emojis.error} This ticket is already claimed by **${claimedByName}**.`
       });
@@ -613,13 +626,13 @@ export async function handleClaimButton(interaction) {
 export async function handleTranscriptButton(interaction) {
   try {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    
+
     const channel = interaction.channel;
     const guild = interaction.guild;
 
     let ticket = getCachedTicket(channel.id);
     let config = getCachedConfig(guild.id);
-    
+
     if (!ticket) {
       ticket = await Ticket.findByChannelId(channel.id);
       if (ticket) setCachedTicket(channel.id, ticket);
@@ -636,7 +649,7 @@ export async function handleTranscriptButton(interaction) {
     if (ticket.categoryId) {
       category = await Category.findById(ticket.categoryId);
     }
-    
+
     if (!isStaffFast(interaction.member, config, category)) {
       if (!config) {
         config = await Config.findOne({ guildId: guild.id });
@@ -654,7 +667,7 @@ export async function handleTranscriptButton(interaction) {
 
     const messages = await channel.messages.fetch({ limit: 100 });
     const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
-    
+
     let transcript = `# Ticket #${ticket.ticketNumber} - ${ticket.subject}\n`;
     transcript += `Category: ${ticket.category}\n`;
     transcript += `User: ${ticket.username}\n`;
@@ -695,48 +708,48 @@ export async function handleTranscriptButton(interaction) {
 export async function handleTranscriptDownloadButton(interaction) {
   try {
     await interaction.deferReply({ ephemeral: true });
-    
+
     const messageId = interaction.message.id;
     const transcriptData = transcriptDownloadMap.get(messageId.toString());
-    
+
     if (!transcriptData) {
       return interaction.editReply({
         content: `${emojis.error} Transcript file not found. It may have been deleted.`
       });
     }
-    
+
     // Check if staff
     const guild = interaction.guild;
     let config = getCachedConfig(guild.id);
-    
+
     if (!config) {
       config = await Config.findOne({ guildId: guild.id });
       if (config) setCachedConfig(guild.id, config);
     }
-    
+
     if (!isStaffFast(interaction.member, config, null)) {
       return interaction.editReply({
         content: `${emojis.error} Only staff members can download transcripts.`
       });
     }
-    
+
     // Send the transcript file to the user
     const fs = await import('fs');
-    
+
     if (!fs.existsSync(transcriptData.filePath)) {
       return interaction.editReply({
         content: `${emojis.error} Transcript file not found on server.`
       });
     }
-    
+
     const attachment = new AttachmentBuilder(transcriptData.filePath)
       .setName(transcriptData.fileName);
-    
+
     await interaction.editReply({
       content: `📥 Here's the transcript for Ticket #${transcriptData.ticketNumber}:`,
       files: [attachment]
     });
-    
+
   } catch (error) {
     console.error('Error handling transcript download:', error);
     try {
@@ -752,14 +765,14 @@ export async function handleTranscriptDownloadButton(interaction) {
 export async function handleDeleteButton(interaction) {
   try {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    
+
     const channel = interaction.channel;
     const guild = interaction.guild;
     const user = interaction.user;
 
     let ticket = getCachedTicket(channel.id);
     let config = getCachedConfig(guild.id);
-    
+
     if (!ticket) {
       ticket = await Ticket.findByChannelId(channel.id);
       if (ticket) setCachedTicket(channel.id, ticket);
@@ -771,12 +784,14 @@ export async function handleDeleteButton(interaction) {
       });
     }
 
+    const initialStatus = ticket.status;
+
     // Fetch category for staff check
     let category = null;
     if (ticket.categoryId) {
       category = await Category.findById(ticket.categoryId);
     }
-    
+
     if (!isStaffFast(interaction.member, config, category)) {
       if (!config) {
         config = await Config.findOne({ guildId: guild.id });
@@ -800,8 +815,8 @@ export async function handleDeleteButton(interaction) {
 
     await Ticket.updateOne(
       { channelId: channel.id },
-      { 
-        $set: { 
+      {
+        $set: {
           status: 'closed',
           closedAt: new Date().toISOString(),
           closedBy: user.id,
@@ -812,7 +827,7 @@ export async function handleDeleteButton(interaction) {
 
     if (config?.ticketLogChannelId) {
       const logChannel = await guild.channels.fetch(config.ticketLogChannelId).catch(() => null);
-      
+
       if (logChannel) {
         const logEmbed = new EmbedBuilder()
           .setTitle(`${emojis.danger} Ticket Deleted`)
@@ -826,6 +841,19 @@ export async function handleDeleteButton(interaction) {
           .setTimestamp();
 
         await logChannel.send({ embeds: [logEmbed] });
+      }
+    }
+
+    // Award points for deleting ticket (if it was still open)
+    const pointsEnabled = config?.pointsEnabled !== false;
+    const pointsToAward = config?.pointsOnClose || 1;
+
+    if (pointsEnabled && pointsToAward > 0 && initialStatus !== 'closed') {
+      try {
+        await StaffPoints.addPoints(guild.id, user.id, user.tag, pointsToAward, 'close');
+        console.log(`[POINTS] Awarded ${pointsToAward} points to ${user.tag} for deleting ticket #${ticket.ticketNumber}`);
+      } catch (e) {
+        console.error('[POINTS] Error adding delete points:', e);
       }
     }
 
@@ -859,7 +887,7 @@ export async function handleAddUserButton(interaction) {
 
     let ticket = getCachedTicket(channel.id);
     let config = getCachedConfig(guild.id);
-    
+
     if (!ticket) {
       ticket = await Ticket.findByChannelId(channel.id);
       if (ticket) setCachedTicket(channel.id, ticket);
@@ -884,7 +912,7 @@ export async function handleAddUserButton(interaction) {
     if (ticket.categoryId) {
       category = await Category.findById(ticket.categoryId);
     }
-    
+
     if (!isStaffFast(interaction.member, config, category)) {
       if (!config) {
         config = await Config.findOne({ guildId: guild.id });
@@ -924,14 +952,14 @@ export async function handleAddUserButton(interaction) {
     await interaction.reply({
       content: `${emojis.error} An error occurred.`,
       flags: MessageFlags.Ephemeral
-    }).catch(() => {});
+    }).catch(() => { });
   }
 }
 
 export async function handleAddUserModal(interaction) {
   try {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    
+
     const channel = interaction.channel;
     const guild = interaction.guild;
     const userInput = interaction.fields.getTextInputValue('user_id');
@@ -1035,7 +1063,7 @@ export async function handleDeleteWithTranscriptButton(interaction) {
 export async function handleDeleteTranscriptModal(interaction) {
   try {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    
+
     const channel = interaction.channel;
     const guild = interaction.guild;
     const user = interaction.user;
@@ -1044,9 +1072,9 @@ export async function handleDeleteTranscriptModal(interaction) {
     if (config) {
       setCachedConfig(guild.id, config);
     }
-    
+
     let ticket = getCachedTicket(channel.id);
-    
+
     if (!ticket) {
       ticket = await Ticket.findByChannelId(channel.id);
       if (ticket) setCachedTicket(channel.id, ticket);
@@ -1058,11 +1086,13 @@ export async function handleDeleteTranscriptModal(interaction) {
       });
     }
 
+    const initialStatus = ticket.status;
+
     let category = null;
     if (ticket.categoryId) {
       category = await Category.findById(ticket.categoryId);
     }
-    
+
     if (!isStaffFast(interaction.member, config, category)) {
       return interaction.editReply({
         content: `${emojis.error} Only staff members can delete tickets.`
@@ -1080,32 +1110,32 @@ export async function handleDeleteTranscriptModal(interaction) {
 
     const messages = await channel.messages.fetch({ limit: 100 });
     const messageArray = Array.from(messages.values());
-    
+
     const htmlContent = generateHTMLTranscript(ticket, messageArray, guild, channel);
 
     const fs = await import('fs');
     const path = await import('path');
     const transcriptsDir = path.join(process.cwd(), 'transcripts');
-    
+
     if (!fs.existsSync(transcriptsDir)) {
       fs.mkdirSync(transcriptsDir, { recursive: true });
     }
-    
+
     const safeTicketNumber = ticket.ticketNumber || 'unknown';
     const safeCategory = (ticket.category || 'unknown').toLowerCase().replace(/\s+/g, '-');
     const htmlFileName = `ticket-${safeTicketNumber}-${safeCategory}.html`;
     const htmlFilePath = path.join(transcriptsDir, htmlFileName);
-    
+
     fs.writeFileSync(htmlFilePath, htmlContent);
 
     const htmlAttachment = new AttachmentBuilder(htmlFilePath)
       .setName(`ticket-${safeTicketNumber}-transcript.html`);
-    
+
     const targetChannelId = config?.transcriptChannelId || config?.ticketLogChannelId;
-    
+
     if (targetChannelId) {
       const targetChannel = await guild.channels.fetch(targetChannelId).catch(() => null);
-      
+
       if (targetChannel) {
         const transcriptEmbed = new EmbedBuilder()
           .setTitle(`${emojis.ticket} Ticket #${ticket.ticketNumber || 'Unknown'} Transcript`)
@@ -1133,7 +1163,7 @@ export async function handleDeleteTranscriptModal(interaction) {
           files: [htmlAttachment],
           components: [buttonRow]
         });
-        
+
         // Store the transcript path in a map for the download button
         transcriptDownloadMap.set(`${sentMessage.id}`, {
           filePath: htmlFilePath,
@@ -1146,7 +1176,7 @@ export async function handleDeleteTranscriptModal(interaction) {
     // Send to log channel (if different)
     if (config?.ticketLogChannelId && config.ticketLogChannelId !== targetChannelId) {
       const logChannel = await guild.channels.fetch(config.ticketLogChannelId).catch(() => null);
-      
+
       if (logChannel) {
         const logEmbed = new EmbedBuilder()
           .setTitle(`${emojis.danger} Ticket Deleted with Transcript`)
@@ -1168,8 +1198,8 @@ export async function handleDeleteTranscriptModal(interaction) {
 
     await Ticket.updateOne(
       { channelId: channel.id },
-      { 
-        $set: { 
+      {
+        $set: {
           status: 'closed',
           closedAt: new Date().toISOString(),
           closedBy: user.id,
@@ -1190,10 +1220,23 @@ export async function handleDeleteTranscriptModal(interaction) {
       content: `${emojis.success} Transcript generated and sent! Deleting ticket...`
     });
 
+    // Award points for deleting ticket with transcript (if it was still open)
+    const pointsEnabled = config?.pointsEnabled !== false;
+    const pointsToAward = config?.pointsOnClose || 1;
+
+    if (pointsEnabled && pointsToAward > 0 && initialStatus !== 'closed') {
+      try {
+        await StaffPoints.addPoints(guild.id, user.id, user.tag, pointsToAward, 'close');
+        console.log(`[POINTS] Awarded ${pointsToAward} points to ${user.tag} for deleting ticket (transcript) #${ticket.ticketNumber}`);
+      } catch (e) {
+        console.error('[POINTS] Error adding transcript delete points:', e);
+      }
+    }
+
     setTimeout(async () => {
       try {
         await channel.delete();
-        
+
         // Refresh ticket panel so users can create new tickets
         try {
           await refreshTicketPanel(guild, config);
@@ -1214,7 +1257,7 @@ export async function handleDeleteTranscriptModal(interaction) {
           content: `${emojis.error} An error occurred: ${error.message}`
         });
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 }
 
@@ -1225,65 +1268,65 @@ export { transcriptDownloadMap };
 export async function handleDownloadHTMLButton(interaction) {
   try {
     await interaction.deferReply({ ephemeral: true });
-    
+
     // Get ticket info from the channel
     const channel = interaction.channel;
     const guild = interaction.guild;
-    
+
     let ticket = getCachedTicket(channel.id);
     let config = getCachedConfig(guild.id);
-    
+
     if (!ticket) {
       ticket = await Ticket.findByChannelId(channel.id);
       if (ticket) setCachedTicket(channel.id, ticket);
     }
-    
+
     if (!config) {
       config = await Config.findOne({ guildId: guild.id });
       if (config) setCachedConfig(guild.id, config);
     }
-    
+
     if (!ticket) {
       return interaction.editReply({
         content: `${emojis.error} This channel is not a ticket channel.`
       });
     }
-    
+
     // Check if staff
     if (!isStaffFast(interaction.member, config, null)) {
       return interaction.editReply({
         content: `${emojis.error} Only staff members can download transcripts.`
       });
     }
-    
+
     // Generate and send transcript
     const messages = await channel.messages.fetch({ limit: 100 });
     const messageArray = Array.from(messages.values());
     const htmlContent = generateHTMLTranscript(ticket, messageArray, guild, channel);
-    
+
     const fs = await import('fs');
     const path = await import('path');
     const transcriptsDir = path.join(process.cwd(), 'transcripts');
-    
+
     if (!fs.existsSync(transcriptsDir)) {
       fs.mkdirSync(transcriptsDir, { recursive: true });
     }
-    
+
     const safeTicketNumber = ticket.ticketNumber || 'unknown';
     const safeCategory = (ticket.category || 'unknown').toLowerCase().replace(/\s+/g, '-');
     const htmlFileName = `ticket-${safeTicketNumber}-${safeCategory}.html`;
     const htmlFilePath = path.join(transcriptsDir, htmlFileName);
-    
+
     fs.writeFileSync(htmlFilePath, htmlContent);
-    
+
     const attachment = new AttachmentBuilder(htmlFilePath)
       .setName(`ticket-${safeTicketNumber}-transcript.html`);
-    
+
     await interaction.editReply({
       content: `📥 Here's the transcript for Ticket #${safeTicketNumber}:`,
       files: [attachment]
     });
-    
+
   } catch (error) {
     console.error('Error handling download HTML button:', error);
     try {

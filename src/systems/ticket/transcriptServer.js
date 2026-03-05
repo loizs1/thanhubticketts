@@ -28,12 +28,12 @@ const transcripts = new Map();
  */
 export function startTranscriptServer() {
   app.use(express.static(path.join(__dirname, '../../../public')));
-  
+
   // Main page - list all transcripts
   app.get('/', async (req, res) => {
     const db = getDb();
     let tickets = [];
-    
+
     try {
       const stmt = db.prepare(`
         SELECT id, ticketNumber, guildId, username, category, status, openedAt, closedAt, transcriptUrl 
@@ -46,7 +46,7 @@ export function startTranscriptServer() {
       console.error('[TRANSCRIPT SERVER] Error fetching tickets:', e);
     }
 
-    
+
     let html = `
     <!DOCTYPE html>
     <html>
@@ -125,7 +125,7 @@ export function startTranscriptServer() {
         <h1>🎫 Ticket Transcripts</h1>
         <div class="ticket-list">
     `;
-    
+
     if (tickets.length === 0) {
       html += `<div class="empty">No transcripts available yet.</div>`;
     } else {
@@ -145,22 +145,22 @@ export function startTranscriptServer() {
         `;
       }
     }
-    
+
     html += `
         </div>
       </div>
     </body>
     </html>
     `;
-    
+
     res.send(html);
   });
-  
+
   // Download transcript as HTML file (forces download)
   app.get('/download/:ticketId', async (req, res) => {
     const { ticketId } = req.params;
     const db = getDb();
-    
+
     // Get ticket data
     let ticket = null;
     try {
@@ -169,11 +169,11 @@ export function startTranscriptServer() {
     } catch (e) {
       console.error('[TRANSCRIPT SERVER] Error fetching ticket:', e);
     }
-    
+
     if (!ticket) {
       return res.status(404).send('Transcript not found');
     }
-    
+
     // Get messages from file
     let messages = [];
     if (ticket.transcriptPath) {
@@ -185,7 +185,7 @@ export function startTranscriptServer() {
         console.error('Error loading transcript messages:', e);
       }
     }
-    
+
     // Convert plain message objects
     const formattedMessages = messages.map(msg => ({
       id: msg.id,
@@ -212,7 +212,7 @@ export function startTranscriptServer() {
         fields: embed.fields
       })) || []
     }));
-    
+
     // Generate HTML
     const html = generateHTMLTranscript(
       ticket,
@@ -220,7 +220,7 @@ export function startTranscriptServer() {
       { name: ticket.guildName || 'Discord Server' },
       { name: `ticket-${ticket.ticketNumber}` }
     );
-    
+
     // Force download with Content-Disposition header
     const filename = `ticket-${ticket.ticketNumber}-${(ticket.category || 'transcript').toLowerCase().replace(/\s+/g, '-')}.html`;
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -233,7 +233,7 @@ export function startTranscriptServer() {
 
     const { ticketId } = req.params;
     const db = getDb();
-    
+
     // Get ticket data
     let ticket = null;
     try {
@@ -242,12 +242,12 @@ export function startTranscriptServer() {
     } catch (e) {
       console.error('[TRANSCRIPT SERVER] Error fetching ticket:', e);
     }
-    
+
     if (!ticket) {
       return res.status(404).send('Transcript not found');
     }
 
-    
+
     // Get messages from JSON file
     let messages = [];
     if (ticket.transcriptPath) {
@@ -259,7 +259,7 @@ export function startTranscriptServer() {
         console.error('Error loading transcript messages:', e);
       }
     }
-    
+
     // Convert plain message objects to match what generateHTMLTranscript expects
     const formattedMessages = messages.map(msg => ({
       id: msg.id,
@@ -286,7 +286,7 @@ export function startTranscriptServer() {
         fields: embed.fields
       })) || []
     }));
-    
+
     // Generate HTML
     const html = generateHTMLTranscript(
       ticket,
@@ -294,19 +294,19 @@ export function startTranscriptServer() {
       { name: ticket.guildName || 'Discord Server' },
       { name: `ticket-${ticket.ticketNumber}` }
     );
-    
+
     res.send(html);
   });
 
-  
+
   // API endpoint to save transcript
   app.post('/api/save-transcript', express.json(), async (req, res) => {
     const { ticketId } = req.body;
-    
+
     // Save to database
     const db = getDb();
     const transcriptUrl = `${getHost()}/transcript/${ticketId}`;
-    
+
     try {
       const stmt = db.prepare('UPDATE tickets SET transcriptUrl = ? WHERE id = ?');
       stmt.run(transcriptUrl, ticketId);
@@ -317,7 +317,7 @@ export function startTranscriptServer() {
     }
   });
 
-  
+
   // Listen on 0.0.0.0 for PebbleHost (external access)
   const HOST = '0.0.0.0';
   app.listen(PORT, HOST, () => {
@@ -325,7 +325,7 @@ export function startTranscriptServer() {
     console.log(`🌐 External URL: ${getHost()}`);
   });
 
-  
+
   return app;
 }
 
