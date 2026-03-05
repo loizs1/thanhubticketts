@@ -6,12 +6,12 @@ const Config = {
     const db = getDb();
     let query = 'SELECT * FROM configs WHERE 1=1';
     const params = [];
-    
+
     if (filter.guildId) {
       query += ' AND guildId = ?';
       params.push(filter.guildId);
     }
-    
+
     const stmt = db.prepare(query);
     const rows = stmt.all(...params);
     return rows.map(row => formatConfig(row));
@@ -22,12 +22,12 @@ const Config = {
     const db = getDb();
     let query = 'SELECT * FROM configs WHERE 1=1';
     const params = [];
-    
+
     if (filter.guildId) {
       query += ' AND guildId = ?';
       params.push(filter.guildId);
     }
-    
+
     query += ' LIMIT 1';
     const stmt = db.prepare(query);
     const row = stmt.get(...params);
@@ -45,7 +45,7 @@ const Config = {
   // Create new config
   create(data) {
     const db = getDb();
-    
+
     const fields = {
       guildId: data.guildId,
       ticketCategoryId: data.ticketCategoryId || null,
@@ -76,11 +76,11 @@ const Config = {
       panelFooter: data.panelFooter || null,
       panelPlaceholder: data.panelPlaceholder || null
     };
-    
+
     const columns = Object.keys(fields).join(', ');
     const placeholders = Object.keys(fields).map(() => '?').join(', ');
     const values = Object.values(fields);
-    
+
     try {
       const insertStmt = db.prepare(`INSERT INTO configs (${columns}) VALUES (${placeholders})`);
       const result = insertStmt.run(...values);
@@ -98,13 +98,14 @@ const Config = {
   updateOne(filter, update) {
     const db = getDb();
     const setData = update.$set || update;
-    
+
     const updates = [];
     const values = [];
-    
+
     for (const [key, value] of Object.entries(setData)) {
-      if (key === 'autoCloseEnabled' || key === 'transcriptsEnabled' || 
-          key === 'claimEnabled' || key === 'ratingsEnabled' || key === 'pointsEnabled') {
+      if (key === '$set') continue; // Skip if accidentally passed
+
+      if (['autoCloseEnabled', 'transcriptsEnabled', 'claimEnabled', 'ratingsEnabled', 'pointsEnabled'].includes(key)) {
         updates.push(`${key} = ?`);
         values.push(value ? 1 : 0);
       } else {
@@ -112,21 +113,26 @@ const Config = {
         values.push(value);
       }
     }
-    
+
+    if (updates.length === 0) return;
+
     // Build WHERE clause
-    let whereClause = 'id = ?';
-    if (filter._id) {
-      values.push(filter._id);
-    } else if (filter.id) {
-      values.push(filter.id);
+    let whereClause = '';
+    const whereValues = [];
+
+    if (filter.id || filter._id) {
+      whereClause = 'id = ?';
+      whereValues.push(filter.id || filter._id);
     } else if (filter.guildId) {
       whereClause = 'guildId = ?';
-      values.push(filter.guildId);
+      whereValues.push(filter.guildId);
+    } else {
+      throw new Error('Update requires a filter with id or guildId');
     }
-    
+
     const query = `UPDATE configs SET ${updates.join(', ')} WHERE ${whereClause}`;
     const stmt = db.prepare(query);
-    stmt.run(...values);
+    stmt.run(...values, ...whereValues);
   },
 
   // Find one and update (returns the updated document)
@@ -170,7 +176,7 @@ const Config = {
 // Helper to format config data
 function formatConfig(row) {
   if (!row) return null;
-  
+
   const formatted = {
     ...row,
     id: row.id,
@@ -204,7 +210,7 @@ function formatConfig(row) {
     panelPlaceholder: row.panelPlaceholder,
     _id: row.id.toString()
   };
-  
+
   return formatted;
 }
 

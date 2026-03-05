@@ -166,33 +166,33 @@ export default {
 
   async autocomplete(interaction) {
     const subcommand = interaction.options.getSubcommand();
-    
+
     if (subcommand === 'category') {
       const focusedOption = interaction.options.getFocused(true);
-      
+
       if (focusedOption.name === 'name') {
         const guildId = interaction.guild.id;
         const focusedValue = focusedOption.value;
-        
+
         console.log(`[AUTOCOMPLETE] Guild: ${guildId}, Filter: "${focusedValue}"`);
-        
+
         try {
           // Get all categories for this guild
-          const categories = await Category.find({ 
+          const categories = await Category.find({
             guildId: guildId
           }).sort({ order: 1 }).exec();
-          
+
           console.log(`[AUTOCOMPLETE] Found ${categories.length} total categories`);
-          
+
           // Filter categories based on input
           const filteredCategories = categories.filter(cat => {
             const match = cat.name.toLowerCase().includes(focusedValue.toLowerCase());
             console.log(`[AUTOCOMPLETE] Checking "${cat.name}" - match: ${match}`);
             return match;
           });
-          
+
           console.log(`[AUTOCOMPLETE] Filtered to ${filteredCategories.length} categories`);
-          
+
           // Map to choices format
           const choices = filteredCategories
             .slice(0, 25)
@@ -200,12 +200,12 @@ export default {
               name: `${cat.isActive ? '🟢' : '🔴'} ${cat.emoji || '🎟️'} ${cat.name}`.slice(0, 100),
               value: cat.name.slice(0, 100)
             }));
-          
+
           console.log(`[AUTOCOMPLETE] Responding with ${choices.length} choices:`, choices);
-          
+
           // Always respond, even if empty
           await interaction.respond(choices);
-          
+
         } catch (error) {
           console.error('[AUTOCOMPLETE] Error:', error);
           try {
@@ -226,10 +226,10 @@ export default {
   async execute(interaction) {
     const member = interaction.member;
     const config = await Config.findOne({ guildId: interaction.guild.id });
-    
+
     const isAdmin = member.permissions.has(PermissionFlagsBits.Administrator);
     const hasAdminRole = config?.staffRoleId && member.roles.cache.has(config.staffRoleId);
-    
+
     if (!isAdmin && !hasAdminRole) {
       return interaction.reply({
         content: `${emojis.error} You need Administrator permission or the configured Admin role to use this command.`,
@@ -290,7 +290,7 @@ async function handlePanel(interaction) {
     });
 
     const config = await Config.findOne({ guildId: interaction.guild.id });
-    
+
     const title = config?.panelTitle || `${emojis.ticket} Support Ticket System`;
     const description = config?.panelDescription || 'Select a category below to create a new support ticket.\n\nOur staff team will assist you as soon as possible!';
     const color = config?.panelColor || colors.primary;
@@ -319,14 +319,22 @@ async function handlePanel(interaction) {
 
     await Config.findOneAndUpsert(
       { guildId: interaction.guild.id },
-      { $set: { 
-        panelMessageId: message.id,
-        createTicketChannelId: channel.id 
-      }}
+      {
+        $set: {
+          panelMessageId: message.id,
+          createTicketChannelId: channel.id
+        }
+      }
     );
 
     await interaction.editReply({
-      content: `${emojis.success} Ticket panel created successfully!`
+      embeds: [
+        new EmbedBuilder()
+          .setTitle(`${emojis.success} Global Panel Created`)
+          .setDescription(`The ticket creation panel has been deployed to <#${channel.id}>.\n\n**Quick Tips:**\n• Use \`/setup panelcustom\` to change the appearance.\n• Use \`/setup category\` to manage ticket types.`)
+          .setColor(colors.success)
+          .setTimestamp()
+      ]
     });
 
   } catch (error) {
@@ -352,7 +360,7 @@ async function handlePanelCustom(interaction) {
     // If no options provided, show current settings
     if (!title && !description && !color && !thumbnail && !image && !footer && !placeholder) {
       const config = await Config.findOne({ guildId: interaction.guild.id });
-      
+
       const embed = new EmbedBuilder()
         .setTitle('🎨 Panel Customization Settings')
         .setDescription('Current panel customization (leave empty to keep current):')
@@ -373,7 +381,7 @@ async function handlePanelCustom(interaction) {
     }
 
     const updates = {};
-    
+
     if (title) updates.panelTitle = title;
     if (description) updates.panelDescription = description;
     if (color) updates.panelColor = color;
@@ -389,12 +397,12 @@ async function handlePanelCustom(interaction) {
     }
 
     console.log(`[PANEL CUSTOM] Saving customizations for guild ${interaction.guild.id}:`, updates);
-    
+
     await Config.findOneAndUpsert(
       { guildId: interaction.guild.id },
       { $set: updates }
     );
-    
+
     // Refresh the panel to show changes
     await refreshTicketPanel(interaction.guild, await Config.findOne({ guildId: interaction.guild.id }));
 
@@ -408,9 +416,10 @@ async function handlePanelCustom(interaction) {
     if (placeholder) changes.push(`📋 Placeholder: ${placeholder}`);
 
     const embed = new EmbedBuilder()
-      .setTitle(`${emojis.success} Panel Customized!`)
-      .setDescription(changes.join('\n') + '\n\n✅ Panel has been updated!')
+      .setTitle(`${emojis.success} Style Updated`)
+      .setDescription(`The panel appearance has been refreshed with your new settings!\n\n**Changes Applied:**\n${changes.map(c => `• ${c}`).join('\n')}`)
       .setColor(colors.success)
+      .setAuthor({ name: 'System Appearance' })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
@@ -443,10 +452,10 @@ async function handleCategory(interaction) {
         }).sort({ order: 1 }).exec();
 
         if (!name) {
-          let categoryList = currentCategories.length > 0 
+          let categoryList = currentCategories.length > 0
             ? currentCategories.map(cat => `• ${cat.emoji} **${cat.name}**`).join('\n')
             : 'No categories yet.';
-          
+
           return interaction.editReply({
             content: `${emojis.info} Please specify a category name to add.\n\n**Current categories:**\n${categoryList}\n\nUsage: \`/setup category action:add name:CATEGORY_NAME emoji:🎫\``
           });
@@ -463,21 +472,21 @@ async function handleCategory(interaction) {
               { guildId: interaction.guild.id, name },
               { $set: { isActive: true } }
             );
-            
+
             const refreshResult = await refreshTicketPanel(interaction.guild, await Config.findOne({ guildId: interaction.guild.id }));
             let msg = `${emojis.success} Category "${name}" ${existing.emoji} reactivated successfully!`;
             if (refreshResult) {
               msg += `\n${emojis.success} Panel auto-refreshed with reactivated category.`;
             }
-            
+
             return interaction.editReply({ content: msg });
           }
-          
+
           const activeCategories = currentCategories.filter(cat => cat.isActive);
-          const categoryList = activeCategories.length > 0 
+          const categoryList = activeCategories.length > 0
             ? activeCategories.map(cat => `• ${cat.emoji} **${cat.name}**`).join('\n')
             : 'No active categories.';
-            
+
           return interaction.editReply({
             content: `${emojis.error} Category "${name}" already exists and is active.\n\n**Current active categories:**\n${categoryList}`
           });
@@ -513,12 +522,12 @@ async function handleCategory(interaction) {
 
         const staffInfo = staffRoleIds.length > 0 ? ` (Staff: ${staffRoleIds.map(id => `<@&${id}>`).join(', ')})` : '';
         const refreshResult = await refreshTicketPanel(interaction.guild, await Config.findOne({ guildId: interaction.guild.id }));
-        
+
         let msg = `${emojis.success} Category "${name}" ${emoji} created successfully!${staffInfo}`;
         if (refreshResult) {
           msg += `\n${emojis.success} Panel auto-refreshed with new category.`;
         }
-        
+
         await interaction.editReply({ content: msg });
         break;
       }
@@ -558,7 +567,7 @@ async function handleCategory(interaction) {
         if (refreshResult) {
           msg += `\n${emojis.success} Panel auto-refreshed.`;
         }
-        
+
         await interaction.editReply({ content: msg });
         break;
       }
@@ -575,8 +584,8 @@ async function handleCategory(interaction) {
         }
 
         const list = categories.map(cat => {
-          const staffInfo = cat.staffRoleIds?.length > 0 
-            ? ` (Staff: ${cat.staffRoleIds.map(id => `<@&${id}>`).join(', ')})` 
+          const staffInfo = cat.staffRoleIds?.length > 0
+            ? ` (Staff: ${cat.staffRoleIds.map(id => `<@&${id}>`).join(', ')})`
             : '';
           return `${cat.isActive ? '🟢' : '🔴'} ${cat.emoji} **${cat.name}** - ${cat.ticketCount} tickets${staffInfo}`;
         }).join('\n');
@@ -610,14 +619,14 @@ async function handleCategory(interaction) {
         }
 
         let newStaffRoleIds = [];
-        
+
         if (staffRole) {
           newStaffRoleIds.push(staffRole.id);
         }
-        
+
         if (staffRoleId) {
           const roleIds = staffRoleId.split(',').map(id => id.trim()).filter(id => id);
-          
+
           for (const roleId of roleIds) {
             try {
               const role = await interaction.guild.roles.fetch(roleId);
@@ -635,7 +644,7 @@ async function handleCategory(interaction) {
             }
           }
         }
-        
+
         if (newStaffRoleIds.length === 0) {
           return interaction.editReply({
             content: `${emojis.error} Please provide a staff role or staff role ID(s).`
@@ -657,7 +666,7 @@ async function handleCategory(interaction) {
         const currentRoles = category.staffRoleIds || [];
         const duplicateRoles = newStaffRoleIds.filter(id => currentRoles.includes(id));
         const rolesToAdd = newStaffRoleIds.filter(id => !currentRoles.includes(id));
-        
+
         if (rolesToAdd.length === 0) {
           return interaction.editReply({
             content: `${emojis.error} All provided roles are already staff roles for "${name}".\nCurrent staff: ${currentRoles.map(id => `<@&${id}>`).join(', ') || 'None'}`
@@ -681,7 +690,7 @@ async function handleCategory(interaction) {
         if (refreshResult) {
           msg += `\n${emojis.success} Panel auto-refreshed.`;
         }
-        
+
         await interaction.editReply({ content: msg });
         break;
       }
@@ -748,7 +757,7 @@ async function handleCategory(interaction) {
         }
 
         const updatedRoles = currentRoles.filter(id => id !== removeStaffRoleId);
-        
+
         await Category.updateOne(
           { guildId: interaction.guild.id, name },
           { $set: { staffRoleIds: updatedRoles } }
@@ -759,7 +768,7 @@ async function handleCategory(interaction) {
         if (refreshResult) {
           msg += `\n${emojis.success} Panel auto-refreshed.`;
         }
-        
+
         await interaction.editReply({ content: msg });
         break;
       }
@@ -789,7 +798,7 @@ async function handleCategory(interaction) {
           }
 
           const staffRoles = category.staffRoleIds || [];
-          const staffList = staffRoles.length > 0 
+          const staffList = staffRoles.length > 0
             ? staffRoles.map(id => `• <@&${id}>`).join('\n')
             : 'No staff roles assigned.';
 
@@ -798,29 +807,27 @@ async function handleCategory(interaction) {
             .setDescription(staffList)
             .setColor(colors.primary)
             .setTimestamp();
-
           return interaction.editReply({ embeds: [embed] });
         }
 
         const embed = new EmbedBuilder()
-          .setTitle(`${emojis.ticket} Category Staff Roles`)
+          .setTitle(`📂 Ticket Categories`)
+          .setDescription(`Found **${allCats.length}** categories configured for this server.`)
           .setColor(colors.primary)
+          .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
           .setTimestamp();
 
         for (const cat of allCats) {
-          const staffRoles = cat.staffRoleIds || [];
-          const staffList = staffRoles.length > 0 
-            ? staffRoles.map(id => `<@&${id}>`).join(', ')
-            : 'None';
-          
+          const staffCount = (cat.staffRoleIds || []).length;
+          const status = cat.isActive ? '✅ Active' : '❌ Disabled';
           embed.addFields({
             name: `${cat.emoji} ${cat.name}`,
-            value: staffList,
-            inline: false
+            value: `> ${status}\n> 🛡️ Staff: **${staffCount}** roles\n> 📋 Count: **${cat.ticketCount}** tickets`,
+            inline: true
           });
         }
 
-        await interaction.editReply({ embeds: [embed] });
+        return interaction.editReply({ embeds: [embed] });
         break;
       }
 
@@ -930,7 +937,7 @@ async function handleCategory(interaction) {
             });
           }
 
-          const fieldsList = modalFields.map((f, i) => 
+          const fieldsList = modalFields.map((f, i) =>
             `${i + 1}. **${f.label}**\n` +
             `   • Style: ${f.style || 'short'}\n` +
             `   • Required: ${f.required ? 'Yes' : 'No'}\n` +
@@ -955,10 +962,10 @@ async function handleCategory(interaction) {
 
         for (const cat of allCats) {
           const modalFields = cat.modalFields || [];
-          const modalStatus = modalFields.length > 0 
+          const modalStatus = modalFields.length > 0
             ? `✅ Custom (${modalFields.length} fields)`
             : '⚪ Default (Subject + Description)';
-          
+
           embed.addFields({
             name: `${cat.emoji} ${cat.name}`,
             value: modalStatus,
@@ -986,7 +993,7 @@ async function handleReset(interaction) {
 
   try {
     const config = await Config.findOne({ guildId: interaction.guild.id });
-    
+
     if (!config?.panelMessageId) {
       return interaction.editReply({
         content: `${emojis.error} No panel found to reset. Use \`/setup panel\` to create a new one.`
@@ -1036,7 +1043,7 @@ async function handleReset(interaction) {
     });
 
     const newConfig = await Config.findOne({ guildId: interaction.guild.id });
-    
+
     const title = newConfig?.panelTitle || `${emojis.ticket} Support Ticket System`;
     const description = newConfig?.panelDescription || 'Select a category below to create a new support ticket.\n\nOur staff team will assist you as soon as possible!';
     const color = newConfig?.panelColor || colors.primary;
@@ -1065,10 +1072,12 @@ async function handleReset(interaction) {
 
     await Config.findOneAndUpdate(
       { guildId: interaction.guild.id },
-      { $set: { 
-        panelMessageId: message.id,
-        createTicketChannelId: channel.id 
-      }}
+      {
+        $set: {
+          panelMessageId: message.id,
+          createTicketChannelId: channel.id
+        }
+      }
     );
 
     await interaction.editReply({
@@ -1093,7 +1102,7 @@ async function handlePoints(interaction) {
   try {
     if (action === 'list' || (enablePoints === null && !pointsOnClose)) {
       const config = await Config.findOne({ guildId: interaction.guild.id });
-      
+
       if (!config) {
         const embed = new EmbedBuilder()
           .setTitle(`${emojis.trophy} Point System Configuration`)
@@ -1120,7 +1129,7 @@ async function handlePoints(interaction) {
 
     if (action === 'set') {
       const updates = {};
-      
+
       if (enablePoints !== null) {
         updates.pointsEnabled = enablePoints ? 1 : 0;
       }
@@ -1135,14 +1144,14 @@ async function handlePoints(interaction) {
       }
 
       console.log(`[POINTS CONFIG] Saving config for guild ${interaction.guild.id}:`, updates);
-      
+
       await Config.findOneAndUpsert(
         { guildId: interaction.guild.id },
         { $set: updates }
       );
-      
+
       console.log(`[POINTS CONFIG] Config saved successfully.`);
-      
+
       clearConfigCache(interaction.guild.id);
 
       const changes = [];
@@ -1160,7 +1169,7 @@ async function handlePoints(interaction) {
 
     if (action === 'reset') {
       await StaffPoints.resetPoints(interaction.guild.id);
-      
+
       const embed = new EmbedBuilder()
         .setTitle(`${emojis.success} Points Reset`)
         .setDescription('All staff points have been reset to 0!')
@@ -1191,7 +1200,7 @@ async function handleConfig(interaction) {
   try {
     if (action === 'list' || (!staffRole && !staffRoleId && !logChannel && !transcriptChannel && !maxTickets)) {
       const config = await Config.findOne({ guildId: interaction.guild.id });
-      
+
       if (!config) {
         const embed = new EmbedBuilder()
           .setTitle(`${emojis.ticket} Ticket System Configuration`)
@@ -1203,18 +1212,17 @@ async function handleConfig(interaction) {
       }
 
       const embed = new EmbedBuilder()
-        .setTitle(`${emojis.ticket} Ticket System Configuration`)
+        .setTitle(`⚙️ Server Configuration`)
         .setDescription('Current settings for this server:')
         .addFields(
-          { name: '👤 Global Staff Role', value: config.staffRoleId ? `<@&${config.staffRoleId}>` : '❌ Not set', inline: true },
-          { name: '📋 Log Channel', value: config.ticketLogChannelId ? `<#${config.ticketLogChannelId}>` : '❌ Not set', inline: true },
-          { name: '📄 Transcript Channel', value: config.transcriptChannelId ? `<#${config.transcriptChannelId}>` : '❌ Not set', inline: true },
-          { name: '🔢 Max Tickets Per User', value: config.maxTicketsPerUser?.toString() || '3', inline: true },
-          { name: '📝 Transcripts Enabled', value: config.transcriptsEnabled !== false ? '✅ Yes' : '❌ No', inline: true },
-          { name: '🔒 Auto-Close Enabled', value: config.autoCloseEnabled ? '✅ Yes' : '❌ No', inline: true },
-          { name: '⏰ Auto-Close Days', value: config.autoCloseDays?.toString() || '7', inline: true },
-          { name: '⚠️ Warning Days', value: config.autoCloseWarningDays?.toString() || '5', inline: true }
+          { name: '�️ Staff Role', value: config.staffRoleId ? `<@&${config.staffRoleId}>` : '❌ Not set', inline: true },
+          { name: '📋 Logs', value: config.ticketLogChannelId ? `<#${config.ticketLogChannelId}>` : '❌ Not set', inline: true },
+          { name: '� Transcripts', value: config.transcriptChannelId ? `<#${config.transcriptChannelId}>` : '❌ Not set', inline: true },
+          { name: '🔢 Max Tickets', value: `\`${config.maxTicketsPerUser || '3'}\``, inline: true },
+          { name: '✨ Points', value: config.pointsEnabled !== false ? '✅ Enabled' : '❌ Disabled', inline: true },
+          { name: '� Auto-Close', value: config.autoCloseEnabled ? `✅ ${config.autoCloseDays}d` : '❌ Off', inline: true }
         )
+        .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
         .setColor(colors.primary)
         .setFooter({ text: 'Use /setup config action:set to change settings' })
         .setTimestamp();
@@ -1224,7 +1232,7 @@ async function handleConfig(interaction) {
 
     if (action === 'set') {
       const updates = {};
-      
+
       if (staffRole) {
         updates.staffRoleId = staffRole.id;
       } else if (staffRoleId) {
@@ -1243,7 +1251,7 @@ async function handleConfig(interaction) {
           });
         }
       }
-      
+
       if (logChannel) updates.ticketLogChannelId = logChannel.id;
       if (transcriptChannel) {
         updates.transcriptChannelId = transcriptChannel.id;
@@ -1258,14 +1266,14 @@ async function handleConfig(interaction) {
       }
 
       console.log(`[CONFIG] Saving config for guild ${interaction.guild.id}:`, updates);
-      
+
       await Config.findOneAndUpsert(
         { guildId: interaction.guild.id },
         { $set: updates }
       );
-      
+
       console.log(`[CONFIG] Config saved successfully.`);
-      
+
       clearConfigCache(interaction.guild.id);
 
       const changes = [];

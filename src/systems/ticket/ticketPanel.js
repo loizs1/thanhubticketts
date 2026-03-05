@@ -8,7 +8,7 @@ export async function createTicketPanel(guild, channel) {
   try {
     // Get config for panel customization
     const config = await Config.findOne({ guildId: guild.id });
-    
+
     const categories = await Category.find({
       guildId: guild.id,
       isActive: true
@@ -40,22 +40,33 @@ export async function createTicketPanel(guild, channel) {
     const placeholder = config?.panelPlaceholder || 'Select a category...';
 
     const embed = new EmbedBuilder()
-      .setTitle(title)
-      .setDescription(description)
-      .setColor(color);
+      .setTitle(`✨ ${title}`)
+      .setDescription(`${description}\n\n${emojis.info} **How to open a ticket?**\nClick the dropdown menu below and select the category that best fits your inquiry.`)
+      .setColor(color)
+      .setAuthor({
+        name: `${guild.name} Support`,
+        iconURL: guild.iconURL({ dynamic: true })
+      });
 
     // Add optional fields if they exist
     if (thumbnail) embed.setThumbnail(thumbnail);
+    else embed.setThumbnail(guild.iconURL({ dynamic: true }));
+
     if (image) embed.setImage(image);
-    if (footer) embed.setFooter({ text: footer });
-    
+
+    if (footer) {
+      embed.setFooter({ text: footer, iconURL: guild.iconURL({ dynamic: true }) });
+    } else {
+      embed.setFooter({ text: 'Thanhub Ticket System • Premium Support', iconURL: guild.iconURL({ dynamic: true }) });
+    }
+
     embed.setTimestamp();
 
     const row = new ActionRowBuilder()
       .addComponents(
         new StringSelectMenuBuilder()
           .setCustomId('create_ticket')
-          .setPlaceholder(placeholder)
+          .setPlaceholder(`📂 ${placeholder}`)
           .addOptions(options)
       );
 
@@ -111,22 +122,33 @@ export async function refreshTicketPanel(guild, config) {
     const placeholder = config?.panelPlaceholder || 'Select a category...';
 
     const embed = new EmbedBuilder()
-      .setTitle(title)
-      .setDescription(description)
-      .setColor(color);
+      .setTitle(`✨ ${title}`)
+      .setDescription(`${description}\n\n${emojis.info} **How to open a ticket?**\nClick the dropdown menu below and select the category that best fits your inquiry.`)
+      .setColor(color)
+      .setAuthor({
+        name: `${guild.name} Support`,
+        iconURL: guild.iconURL({ dynamic: true })
+      });
 
     // Add optional fields if they exist
     if (thumbnail) embed.setThumbnail(thumbnail);
+    else embed.setThumbnail(guild.iconURL({ dynamic: true }));
+
     if (image) embed.setImage(image);
-    if (footer) embed.setFooter({ text: footer });
-    
+
+    if (footer) {
+      embed.setFooter({ text: footer, iconURL: guild.iconURL({ dynamic: true }) });
+    } else {
+      embed.setFooter({ text: 'Thanhub Ticket System • Premium Support', iconURL: guild.iconURL({ dynamic: true }) });
+    }
+
     embed.setTimestamp();
 
     const row = new ActionRowBuilder()
       .addComponents(
         new StringSelectMenuBuilder()
           .setCustomId('create_ticket')
-          .setPlaceholder(placeholder)
+          .setPlaceholder(`📂 ${placeholder}`)
           .addOptions(options)
       );
 

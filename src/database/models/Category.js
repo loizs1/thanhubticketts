@@ -26,7 +26,7 @@ class CategoryQuery {
     const db = getDb();
     let query = 'SELECT * FROM categories WHERE 1=1';
     const params = [];
-    
+
     if (this.filter.guildId) {
       query += ' AND guildId = ?';
       params.push(this.filter.guildId);
@@ -47,15 +47,15 @@ class CategoryQuery {
       query += ' AND id = ?';
       params.push(this.filter.id);
     }
-    
+
     // Escape column names to avoid reserved keyword issues
     const escapedSortField = `"${this.sortField}"`;
     query += ` ORDER BY ${escapedSortField} ${this.sortOrder}`;
-    
+
     if (this.limitValue) {
       query += ` LIMIT ${this.limitValue}`;
     }
-    
+
     const stmt = db.prepare(query);
     const rows = stmt.all(...params);
     return rows.map(row => formatCategory(row));
@@ -98,7 +98,7 @@ const Category = {
   // Create new category
   create(data) {
     const db = getDb();
-    
+
     const fields = {
       guildId: data.guildId,
       name: data.name,
@@ -114,11 +114,11 @@ const Category = {
       ticketCount: data.ticketCount || 0,
       orderNum: data.orderNum || 0
     };
-    
+
     const columns = Object.keys(fields).join(', ');
     const placeholders = Object.keys(fields).map(() => '?').join(', ');
     const values = Object.values(fields);
-    
+
     try {
       const insertStmt = db.prepare(`INSERT INTO categories (${columns}) VALUES (${placeholders})`);
       const result = insertStmt.run(...values);
@@ -137,49 +137,51 @@ const Category = {
     const db = getDb();
     const setData = update.$set || {};
     const incData = update.$inc || {};
-    
+
     const updates = [];
     const values = [];
-    
+
     // Handle $set operations
     for (const [key, value] of Object.entries(setData)) {
-      if (key === 'staffRoleIds' || key === 'modalFields') {
+      if (key === '$set') continue;
+
+      if (['staffRoleIds', 'modalFields'].includes(key)) {
         updates.push(`${key} = ?`);
         values.push(JSON.stringify(value));
-      } else if (key === 'isActive' || key === 'staffOnly' || key === 'mentionOnCreate') {
+      } else if (['isActive', 'staffOnly', 'mentionOnCreate'].includes(key)) {
         updates.push(`${key} = ?`);
         values.push(value ? 1 : 0);
-      } else if (key === 'ticketCount' || key === 'orderNum') {
-        updates.push(`${key} = ?`);
-        values.push(value);
       } else {
         updates.push(`${key} = ?`);
         values.push(value);
       }
     }
-    
+
     // Handle $inc operations (e.g., { $inc: { ticketCount: 1 } })
     for (const [key, value] of Object.entries(incData)) {
       updates.push(`${key} = ${key} + ?`);
       values.push(value);
     }
-    
+
     if (updates.length === 0) return;
-    
+
     // Build WHERE clause
-    let whereClause = 'id = ?';
-    if (filter._id) {
-      values.push(filter._id);
-    } else if (filter.id) {
-      values.push(filter.id);
+    let whereClause = '';
+    const whereValues = [];
+
+    if (filter.id || filter._id) {
+      whereClause = 'id = ?';
+      whereValues.push(filter.id || filter._id);
     } else if (filter.guildId && filter.name) {
       whereClause = 'guildId = ? AND name = ?';
-      values.push(filter.guildId, filter.name);
+      whereValues.push(filter.guildId, filter.name);
+    } else {
+      throw new Error('Update requires a filter with id or guildId+name');
     }
-    
+
     const query = `UPDATE categories SET ${updates.join(', ')} WHERE ${whereClause}`;
     const stmt = db.prepare(query);
-    stmt.run(...values);
+    stmt.run(...values, ...whereValues);
   },
 
   // Find one and update
@@ -225,7 +227,7 @@ const Category = {
     const db = getDb();
     let whereClause = 'id = ?';
     const values = [];
-    
+
     if (filter._id) {
       values.push(filter._id);
     } else if (filter.id) {
@@ -234,7 +236,7 @@ const Category = {
       whereClause = 'guildId = ? AND name = ?';
       values.push(filter.guildId, filter.name);
     }
-    
+
     const stmt = db.prepare(`DELETE FROM categories WHERE ${whereClause}`);
     stmt.run(...values);
   },
@@ -244,7 +246,7 @@ const Category = {
     const db = getDb();
     let query = 'SELECT COUNT(*) as count FROM categories WHERE 1=1';
     const params = [];
-    
+
     if (filter.guildId) {
       query += ' AND guildId = ?';
       params.push(filter.guildId);
@@ -253,7 +255,7 @@ const Category = {
       query += ' AND isActive = ?';
       params.push(filter.isActive ? 1 : 0);
     }
-    
+
     const stmt = db.prepare(query);
     const row = stmt.get(...params);
     return row.count;

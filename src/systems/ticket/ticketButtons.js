@@ -48,6 +48,12 @@ export function clearConfigCache(guildId) {
   console.log(`[CACHE] Cleared config cache for guild ${guildId}`);
 }
 
+export function clearAllCache() {
+  configCache.clear();
+  ticketCache.clear();
+  console.log('[CACHE] Cleared all in-memory caches');
+}
+
 // Fast staff check - now also checks category-specific staff roles
 function isStaffFast(member, config, category = null) {
   if (!member) {
