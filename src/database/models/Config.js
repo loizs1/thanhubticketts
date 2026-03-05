@@ -14,7 +14,9 @@ const Config = {
 
     const stmt = db.prepare(query);
     const rows = stmt.all(...params);
-    return rows.map(row => formatConfig(row));
+    const formatted = rows.map(row => formatConfig(row));
+    console.log(`[DB:Config] find found ${formatted.length} entries for ${JSON.stringify(filter)}`);
+    return formatted;
   },
 
   // Find one config
@@ -31,7 +33,9 @@ const Config = {
     query += ' LIMIT 1';
     const stmt = db.prepare(query);
     const row = stmt.get(...params);
-    return row ? formatConfig(row) : null;
+    const formatted = row ? formatConfig(row) : null;
+    console.log(`[DB:Config] findOne ${formatted ? 'FOUND' : 'NOT FOUND'} for ${JSON.stringify(filter)}`);
+    return formatted;
   },
 
   // Find by ID
@@ -82,6 +86,7 @@ const Config = {
     const values = Object.values(fields);
 
     try {
+      console.log(`[DB:Config] Creating new config for guild ${data.guildId}`);
       const insertStmt = db.prepare(`INSERT INTO configs (${columns}) VALUES (${placeholders})`);
       const result = insertStmt.run(...values);
       return this.findById(result.lastInsertRowid);

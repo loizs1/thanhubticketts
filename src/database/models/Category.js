@@ -120,6 +120,7 @@ const Category = {
     const values = Object.values(fields);
 
     try {
+      console.log(`[DB:Category] Creating new category "${data.name}" for guild ${data.guildId}`);
       const insertStmt = db.prepare(`INSERT INTO categories (${columns}) VALUES (${placeholders})`);
       const result = insertStmt.run(...values);
       return this.findById(result.lastInsertRowid);

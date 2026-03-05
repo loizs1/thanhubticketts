@@ -91,9 +91,14 @@ class StatementWrapper {
 
 function saveDatabase() {
   if (db && dbPath) {
-    const data = db.export();
-    const buffer = Buffer.from(data);
-    fs.writeFileSync(dbPath, buffer);
+    try {
+      const data = db.export();
+      const buffer = Buffer.from(data);
+      fs.writeFileSync(dbPath, buffer);
+      console.log(chalk.gray(`[DB] Database saved to ${path.basename(dbPath)} (${buffer.length} bytes)`));
+    } catch (error) {
+      console.error(chalk.red(`[DB] Failed to save database: ${error.message}`));
+    }
   }
 }
 
@@ -102,7 +107,7 @@ export function getPool() {
   return {
     execute: async (sql, params = []) => {
       if (!db) throw new Error('Database not connected');
-      
+
       // Convert MySQL-style ? placeholders to SQLite $1, $2, etc.
       let sqliteSql = sql;
       let paramIndex = 1;
@@ -110,7 +115,7 @@ export function getPool() {
         sqliteSql = sqliteSql.replace('?', `$${paramIndex}`);
         paramIndex++;
       }
-      
+
       // Handle different query types
       if (sql.trim().toLowerCase().startsWith('select')) {
         const stmt = db.prepare(sqliteSql);
@@ -155,13 +160,13 @@ export function getDb() {
 
 export async function connectDatabase() {
   dbPath = path.join(process.cwd(), 'database.sqlite');
-  
+
   console.log(chalk.gray(`  Connecting to SQLite at ${dbPath}...`));
 
   try {
     // Initialize sql.js
     const SQL = await initSqlJs();
-    
+
     // Load existing database or create new one
     if (fs.existsSync(dbPath)) {
       const fileBuffer = fs.readFileSync(dbPath);
@@ -171,10 +176,10 @@ export async function connectDatabase() {
       db = new SQL.Database();
       console.log(chalk.green('✓ SQLite connected (new database created)\n'));
     }
-    
+
     // Initialize tables
     initializeTables();
-    
+
     return new DbWrapper(db);
   } catch (error) {
     console.error(chalk.red('✗ SQLite connection failed:'), error.message);
@@ -184,7 +189,7 @@ export async function connectDatabase() {
 
 function initializeTables() {
   console.log(chalk.yellow('  Initializing database tables...'));
-  
+
   try {
     // Create categories table
     db.run(`
@@ -208,7 +213,7 @@ function initializeTables() {
         UNIQUE(guildId, name)
       )
     `);
-    
+
     // Create trigger for updatedAt
     db.run(`
       CREATE TRIGGER IF NOT EXISTS categories_updatedAt 
@@ -217,7 +222,7 @@ function initializeTables() {
         UPDATE categories SET updatedAt = CURRENT_TIMESTAMP WHERE id = NEW.id;
       END
     `);
-    
+
     console.log(chalk.green('  ✓ Categories table ready'));
 
     // Create configs table
@@ -246,7 +251,7 @@ function initializeTables() {
         updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
+
     // Create trigger for updatedAt
     db.run(`
       CREATE TRIGGER IF NOT EXISTS configs_updatedAt 
@@ -255,7 +260,7 @@ function initializeTables() {
         UPDATE configs SET updatedAt = CURRENT_TIMESTAMP WHERE id = NEW.id;
       END
     `);
-    
+
     console.log(chalk.green('  ✓ Configs table ready'));
 
     // Migration: Add points columns if they don't exist
@@ -328,13 +333,13 @@ function initializeTables() {
         updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
+
     // Create indexes
     db.run(`CREATE INDEX IF NOT EXISTS idx_tickets_guild ON tickets(guildId)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_tickets_channel ON tickets(channelId)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_tickets_user ON tickets(userId, status)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status, openedAt)`);
-    
+
     // Create trigger for updatedAt
     db.run(`
       CREATE TRIGGER IF NOT EXISTS tickets_updatedAt 
@@ -343,7 +348,7 @@ function initializeTables() {
         UPDATE tickets SET updatedAt = CURRENT_TIMESTAMP WHERE id = NEW.id;
       END
     `);
-    
+
     console.log(chalk.green('  ✓ Tickets table ready'));
 
     // Create staff_points table for leaderboard
@@ -361,11 +366,11 @@ function initializeTables() {
         UNIQUE(guildId, userId)
       )
     `);
-    
+
     // Create indexes
     db.run(`CREATE INDEX IF NOT EXISTS idx_staff_points_guild ON staff_points(guildId)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_staff_points_points ON staff_points(points DESC)`);
-    
+
     console.log(chalk.green('  ✓ Staff Points table ready'));
 
     // Save the database after creating tables

@@ -44,17 +44,17 @@ export async function handleCategorySelect(interaction) {
   try {
     const categoryName = interaction.values[0];
     const guildId = interaction.guild.id;
-    
+
     // Fetch category to check for custom modal fields
     // This should be fast - we have caching in place
     let category = getCachedCategory(guildId, categoryName);
-    
+
     if (!category) {
       category = await Category.findOne({
         guildId: guildId,
         name: categoryName
       }).first();
-      
+
       if (category) {
         setCachedCategory(guildId, categoryName, category);
       }
@@ -69,7 +69,7 @@ export async function handleCategorySelect(interaction) {
     if (category && category.modalFields && category.modalFields.length > 0) {
       // Use custom modal fields
       const components = [];
-      
+
       for (const field of category.modalFields.slice(0, 5)) { // Max 5 fields
         const textInput = new TextInputBuilder()
           .setCustomId(field.label.toLowerCase().replace(/\s+/g, '_').substring(0, 20))
@@ -79,11 +79,11 @@ export async function handleCategorySelect(interaction) {
           .setRequired(field.required !== false)
           .setMinLength(field.minLength || 0)
           .setMaxLength(field.maxLength || (field.style === 'paragraph' ? 4000 : 100));
-        
+
         const row = new ActionRowBuilder().addComponents(textInput);
         components.push(row);
       }
-      
+
       modal.addComponents(...components);
     } else {
       // Use default modal fields
@@ -138,7 +138,7 @@ export async function handleTicketModal(interaction) {
   try {
     const modalId = interaction.customId;
     const categoryName = modalId.replace('ticket_modal_', '');
-    
+
     const guild = interaction.guild;
     const user = interaction.user;
 
@@ -160,7 +160,7 @@ export async function handleTicketModal(interaction) {
     // Get all field values from the modal
     const fieldValues = {};
     const modalFields = category?.modalFields || [];
-    
+
     if (modalFields.length > 0) {
       // Custom modal - get values by field labels
       for (const field of modalFields) {
@@ -190,7 +190,7 @@ export async function handleTicketModal(interaction) {
 
     const config = await Config.findOne({ guildId: guild.id });
     const maxTickets = config?.maxTicketsPerUser || 3;
-    
+
     const userOpenTickets = await Ticket.countDocuments({
       guildId: guild.id,
       userId: user.id,
@@ -205,7 +205,7 @@ export async function handleTicketModal(interaction) {
 
     // Find or create ticket category channel
     let ticketParentId = config?.ticketCategoryId;
-    
+
     if (category.categoryChannelId) {
       try {
         const catChannel = await guild.channels.fetch(category.categoryChannelId);
@@ -233,7 +233,7 @@ export async function handleTicketModal(interaction) {
       participants: [user.id]
     });
 
-    
+
     // Get the ticket number from the created ticket
     const ticketNumber = createdTicket.ticketNumber;
 
